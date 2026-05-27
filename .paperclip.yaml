@@ -1,0 +1,598 @@
+schema: "paperclip/v1"
+
+agents:
+  ceo:
+    role: "ceo"
+    capabilities: "CEO de Humanio. Coordina dos rutas: outbound por giro/ciudad (Scout → Qualifier → Outreach → Closer) e inbound/demo urgente por WhatsApp (Closer → DesignPlanner → WebBuilder → WebQA → WebPublisher → Closer/Outreach). Preserva requested_count, evita demos sin interés explícito y monitorea pipeline."
+    adapter:
+      config:
+        model: "openai/gpt-5.4"
+        dangerouslySkipPermissions: true
+      type: "codex_local"
+    runtime:
+      heartbeat:
+        enabled: true
+        intervalSec: 300
+      maxConcurrentRuns: 1
+    permissions:
+      canCreateAgents: true
+
+  scout:
+    role: "general"
+    capabilities: "Especialista en prospección de negocios locales de Humanio. Recibe país, ciudad y giro comercial, realiza investigación exhaustiva en Google Maps, directorios, redes sociales y web para generar listas detalladas de prospectos con todos sus datos de contacto. Al terminar crea ticket para Qualifier y le envía mensaje directo."
+    adapter:
+      config:
+        model: "openai/gpt-5.4"
+        dangerouslySkipPermissions: true
+      type: "codex_local"
+    runtime:
+      heartbeat:
+        enabled: true
+        intervalSec: 300
+      maxConcurrentRuns: 1
+    inputs:
+      env:
+        SCRAPLING_DEFAULT_FETCHER:
+          description: "Fetcher por defecto de Scrapling (Fetcher | StealthyFetcher | DynamicFetcher)"
+          kind: "text"
+          default: "StealthyFetcher"
+          requirement: "optional"
+        FIRECRAWL_API_KEY:
+          description: "Firecrawl API key — usada como fallback cuando Scrapling no basta"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        FIRECRAWL_MCP_URL:
+          description: "URL del MCP server de Firecrawl — fallback: https://mcp.firecrawl.dev/{TOKEN}/v2/mcp"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+
+  qualifier:
+    role: "general"
+    capabilities: "Analista SEO y calificador de prospectos outbound de Humanio. Recibe reportes de Scout, evalúa presencia digital, calcula score de oportunidad (1-10), genera PROSPECT_BRIEF textual con hallazgos y paquete recomendado, respeta activation_limit y crea ticket para Outreach. No despierta al equipo web en cold."
+    adapter:
+      config:
+        model: "openai/gpt-5.4"
+        dangerouslySkipPermissions: true
+      type: "codex_local"
+    runtime:
+      heartbeat:
+        enabled: true
+        intervalSec: 300
+      maxConcurrentRuns: 1
+    inputs:
+      env:
+        SCRAPLING_DEFAULT_FETCHER:
+          description: "Fetcher por defecto de Scrapling para auditorías SEO (StealthyFetcher recomendado)"
+          kind: "text"
+          default: "StealthyFetcher"
+          requirement: "optional"
+        FIRECRAWL_API_KEY:
+          description: "Firecrawl API key — fallback opcional si Scrapling no puede con un sitio"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        FIRECRAWL_MCP_URL:
+          description: "URL del MCP server de Firecrawl — fallback opcional"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+
+  designplanner:
+    role: "general"
+    capabilities: "Planificador de dirección creativa web de Humanio para demos solicitadas. Recibe demo_request de Closer o inbound urgente, emite DESIGN_SPEC premier y crea ticket para WebBuilder. No participa en outbound frío sin interés explícito."
+    adapter:
+      config:
+        model: "openai/gpt-5.4"
+        dangerouslySkipPermissions: true
+      type: "codex_local"
+    runtime:
+      heartbeat:
+        enabled: false
+        intervalSec: 300
+      maxConcurrentRuns: 1
+
+  webbuilder:
+    role: "general"
+    capabilities: "Constructor de activos web de Humanio para demos solicitadas. Construye experiencia premier según DESIGN_SPEC, genera 3 páginas (index, propuesta, reporte) en /tmp/proposal-{slug}/ y entrega a WebQA. No construye sitios para cold leads sin interés."
+    adapter:
+      config:
+        model: "openai/gpt-5.4"
+        dangerouslySkipPermissions: true
+      type: "codex_local"
+    runtime:
+      heartbeat:
+        enabled: false
+        intervalSec: 300
+      maxConcurrentRuns: 1
+    inputs:
+      env:
+        PEXELS_API_KEY:
+          description: "Pexels API key para video hero opcional — si falta, WebBuilder usa fallback visual sin bloquear"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        TWENTY_FIRST_API_KEY:
+          description: "21st.dev API key para componentes UI premium opcionales (modo premier)"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+
+  webqa:
+    role: "general"
+    capabilities: "Auditor técnico, comercial y de marca de demos solicitadas. Audita /tmp/proposal-{slug}/ contra reglas de URL, paquetes, marca y delivery_mode. Emite PASS o FAIL. En PASS, hace handoff a WebPublisher."
+    adapter:
+      config:
+        model: "openai/gpt-5.4"
+        dangerouslySkipPermissions: true
+      type: "codex_local"
+    runtime:
+      heartbeat:
+        enabled: false
+        intervalSec: 300
+      maxConcurrentRuns: 1
+
+  webpublisher:
+    role: "general"
+    capabilities: "Operador de release web para demos aprobadas. Publica el árbol completo en humanio.surge.sh/{slug}/, verifica HTTP 200 en las 3 URLs, registra en Supabase y hace handoff a Closer/Outreach para entrega y seguimiento."
+    adapter:
+      config:
+        model: "openai/gpt-5.4"
+        dangerouslySkipPermissions: true
+      type: "codex_local"
+    runtime:
+      heartbeat:
+        enabled: false
+        intervalSec: 300
+      maxConcurrentRuns: 1
+    inputs:
+      env:
+        SURGE_TOKEN:
+          description: "Surge.sh deploy token — obtener con 'surge token' en terminal"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+        SUPABASE_URL:
+          description: "Supabase project URL"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+        SUPABASE_SERVICE_KEY:
+          description: "Supabase service role key"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+        CLOSER_AGENT_ID:
+          description: "ID del agente Closer de esta compania — requerido para crear handoffs de demo verificados"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+
+  outreach:
+    role: "general"
+    capabilities: "Especialista en comunicación comercial outbound de Humanio. Recibe PROSPECT_BRIEF del Qualifier, envía primer contacto por WhatsApp/email con hallazgos reales y CTA hacia Humanio, registra evidencia en Supabase y crea ticket bloqueado para Closer. Puede apoyar entrega/follow-up de demos cuando Closer o WebPublisher lo pidan."
+    adapter:
+      config:
+        model: "openai/gpt-5.4"
+        dangerouslySkipPermissions: true
+      type: "codex_local"
+    runtime:
+      heartbeat:
+        enabled: true
+        intervalSec: 300
+      maxConcurrentRuns: 1
+    inputs:
+      env:
+        SMTP_HOST:
+          description: "SMTP host para envío de correos"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        SMTP_PORT:
+          description: "Puerto SMTP (ej. 465)"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        SMTP_USER:
+          description: "Usuario SMTP"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        SMTP_PASS:
+          description: "Contraseña SMTP"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        FROM_EMAIL:
+          description: "Email remitente (ej. contacto@humanio.digital)"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        FROM_NAME:
+          description: "Nombre remitente (ej. Miguel González | Humanio)"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        TELEFONO_MIGUEL:
+          description: "Número de Miguel sin espacios ni + (ej. 6671234567)"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        TELEFONO_MIGUEL_DISPLAY:
+          description: "Número de Miguel en formato display (ej. +52 667 123 4567)"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        WHATSAPP_PHONE_NUMBER_ID:
+          description: "Meta WhatsApp Business phone number ID — usado para envío de templates msg1/msg2/msg3"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+        WHATSAPP_CLOUD_API_TOKEN:
+          description: "Meta WhatsApp Business Cloud API permanent token"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+        CHATWOOT_API_URL:
+          description: "URL base de Chatwoot (sin slash final)"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+        CHATWOOT_API_TOKEN:
+          description: "API access token de Chatwoot (perfil → Access Token)"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+        CHATWOOT_ACCOUNT_ID:
+          description: "ID de la cuenta en Chatwoot (normalmente 1)"
+          kind: "secret"
+          default: "1"
+          requirement: "required"
+        CHATWOOT_INBOX_ID:
+          description: "ID del inbox de email en Chatwoot (contacto@humanio.digital = 2)"
+          kind: "secret"
+          default: "2"
+          requirement: "required"
+        CHATWOOT_WHATSAPP_INBOX_ID:
+          description: "ID del inbox de WhatsApp en Chatwoot — para registrar conversaciones que el Closer continuará"
+          kind: "secret"
+          default: "3"
+          requirement: "required"
+        SUPABASE_URL:
+          description: "Supabase project URL — para INSERT en outreach_log y PATCH de etapa"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+        SUPABASE_SERVICE_KEY:
+          description: "Supabase service role key"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+
+  conversationmanager:
+    role: "general"
+    capabilities: "Gestor conversacional de Humanio para Chatwoot y WhatsApp. Recibe eventos inbound, atiende o prepara respuestas como Hannia/Humanio, captura datos, crea instrucciones para CEO, y ejecuta contacto/seguimientos por instruccion de Outreach o Closer. Corre en modo shadow por defecto para convivir con n8n sin duplicar mensajes."
+    adapter:
+      config:
+        model: "openai/gpt-5.4"
+        dangerouslySkipPermissions: true
+      type: "codex_local"
+    runtime:
+      heartbeat:
+        enabled: false
+        intervalSec: 300
+      maxConcurrentRuns: 1
+    inputs:
+      env:
+        CONVERSATION_MANAGER_MODE:
+          description: "Modo operativo: shadow no envia mensajes externos; active permite enviar solo si las flags estan en true"
+          kind: "text"
+          default: "shadow"
+          requirement: "required"
+        HUMANIO_ENABLE_OUTBOUND_SEND:
+          description: "Permite que ConversationManager envie msg1/followups/demo delivery originados por Outreach/Closer"
+          kind: "text"
+          default: "false"
+          requirement: "required"
+        HUMANIO_ENABLE_INBOUND_SEND:
+          description: "Permite que ConversationManager responda mensajes entrantes de Chatwoot/WhatsApp"
+          kind: "text"
+          default: "false"
+          requirement: "required"
+        HUMANIO_ALLOWED_ADMIN_PHONES:
+          description: "Telefonos autorizados para comandos internos, separados por coma"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        WHATSAPP_GRAPH_VERSION:
+          description: "Version de Graph API para WhatsApp Cloud API"
+          kind: "text"
+          default: "v19.0"
+          requirement: "optional"
+        WHATSAPP_PHONE_NUMBER_ID:
+          description: "Meta WhatsApp Business phone number ID"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+        WHATSAPP_CLOUD_API_TOKEN:
+          description: "Meta WhatsApp Business Cloud API permanent token"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+        CHATWOOT_API_URL:
+          description: "URL base de Chatwoot (sin slash final)"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+        CHATWOOT_API_TOKEN:
+          description: "API access token de Chatwoot"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+        CHATWOOT_ACCOUNT_ID:
+          description: "ID de la cuenta en Chatwoot"
+          kind: "secret"
+          default: "1"
+          requirement: "required"
+        CHATWOOT_INBOX_ID:
+          description: "ID del inbox de email en Chatwoot"
+          kind: "secret"
+          default: "2"
+          requirement: "optional"
+        CHATWOOT_WHATSAPP_INBOX_ID:
+          description: "ID del inbox de WhatsApp en Chatwoot"
+          kind: "secret"
+          default: "3"
+          requirement: "required"
+        PAPERCLIP_API_URL:
+          description: "URL base de Paperclip si este agente crea tickets via API"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        PAPERCLIP_API_TOKEN:
+          description: "Token/API key de Paperclip para crear tickets y despertar agentes"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        COMPANY_ID:
+          description: "ID de la compania Humanio en Paperclip"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        CEO_AGENT_ID:
+          description: "ID del agente CEO para tickets de inicio de flujo"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        CLOSER_AGENT_ID:
+          description: "ID del agente Closer para handoffs comerciales"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        OUTREACH_AGENT_ID:
+          description: "ID del agente Outreach para revisiones de contacto"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        CONVERSATION_MANAGER_AGENT_ID:
+          description: "ID de este agente en Paperclip"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        SUPABASE_URL:
+          description: "Supabase project URL para registrar outreach_log/eventos"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+        SUPABASE_SERVICE_KEY:
+          description: "Supabase service role key"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+        SMTP_HOST:
+          description: "SMTP host para email opcional"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        SMTP_PORT:
+          description: "Puerto SMTP"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        SMTP_USER:
+          description: "Usuario SMTP"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        SMTP_PASS:
+          description: "Contrasena SMTP"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        FROM_EMAIL:
+          description: "Email remitente"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        FROM_NAME:
+          description: "Nombre remitente"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+
+  closer:
+    role: "general"
+    capabilities: "Cerrador de ventas de Humanio. Recibe prospectos contactados por Outreach, espera respuestas, clasifica interés, hace demo intake, orquesta demos inbound urgentes con el equipo web, envía seguimientos permitidos y escala cierres al CEO."
+    adapter:
+      config:
+        model: "openai/gpt-5.4"
+        dangerouslySkipPermissions: true
+      type: "codex_local"
+    runtime:
+      heartbeat:
+        enabled: true
+        intervalSec: 300
+      maxConcurrentRuns: 1
+    inputs:
+      env:
+        SMTP_HOST:
+          description: "SMTP host para envío de correos"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        SMTP_PORT:
+          description: "Puerto SMTP"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        SMTP_USER:
+          description: "Usuario SMTP"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        SMTP_PASS:
+          description: "Contraseña SMTP"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        FROM_EMAIL:
+          description: "Email remitente"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        FROM_NAME:
+          description: "Nombre remitente"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        TELEFONO_MIGUEL:
+          description: "Número de Miguel sin espacios"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        TELEFONO_MIGUEL_DISPLAY:
+          description: "Número de Miguel en formato display"
+          kind: "secret"
+          default: ""
+          requirement: "optional"
+        WHATSAPP_PHONE_NUMBER_ID:
+          description: "Meta WhatsApp Business phone number ID — usado para envío de templates msg1/msg2/msg3"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+        WHATSAPP_CLOUD_API_TOKEN:
+          description: "Meta WhatsApp Business Cloud API permanent token"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+        CHATWOOT_API_URL:
+          description: "URL base de Chatwoot (sin slash final)"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+        CHATWOOT_API_TOKEN:
+          description: "API access token de Chatwoot"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+        CHATWOOT_ACCOUNT_ID:
+          description: "ID de la cuenta en Chatwoot (normalmente 1)"
+          kind: "secret"
+          default: "1"
+          requirement: "required"
+        CHATWOOT_INBOX_ID:
+          description: "ID del inbox de email en Chatwoot (contacto@humanio.digital = 2)"
+          kind: "secret"
+          default: "2"
+          requirement: "required"
+        CHATWOOT_WHATSAPP_INBOX_ID:
+          description: "ID del inbox de WhatsApp en Chatwoot — para responder en el mismo hilo del Outreach"
+          kind: "secret"
+          default: "3"
+          requirement: "required"
+        SUPABASE_URL:
+          description: "Supabase project URL — para INSERT msg2/msg3 en outreach_log"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+        SUPABASE_SERVICE_KEY:
+          description: "Supabase service role key"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+
+  dataanalyst:
+    role: "researcher"
+    icon: "database"
+    capabilities: "Experto en evaluación y análisis de datos, creación de reportes y tableros de control, indicadores, OKRs. Identifica oportunidades de mercado a través de análisis de datos del pipeline de Humanio."
+    adapter:
+      config:
+        model: "openai/gpt-5.4"
+        dangerouslySkipPermissions: true
+      type: "codex_local"
+    runtime:
+      heartbeat:
+        enabled: true
+        intervalSec: 300
+      maxConcurrentRuns: 1
+    inputs:
+      env:
+        SURGE_TOKEN:
+          description: "Surge.sh deploy token — para publicar dashboards HTML como humanio.surge.sh/dashboard-{fecha}/"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+        SUPABASE_URL:
+          description: "Supabase project URL — fuente primaria de métricas del pipeline"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+        SUPABASE_SERVICE_KEY:
+          description: "Supabase service role key — lectura de métricas y eventos"
+          kind: "secret"
+          default: ""
+          requirement: "required"
+
+company:
+  logoPath: "images/company-logo.png"
+
+projects:
+  onboarding:
+    color: "#6366f1"
+    status: "in_progress"
+
+routines:
+  # PAUSADAS — el pipeline se activa por mensajes directos entre agentes (auto-wake)
+  # Activar solo como mecanismo de recuperación si un agente se corta mid-task
+  qualifier-revisar-tickets-pendientes:
+    status: "paused"
+    triggers:
+      - kind: "schedule"
+        cronExpression: "10 * * * *"
+        label: "hourly-recovery"
+        timezone: "America/Mazatlan"
+
+  dataanalyst-pipeline-semanal:
+    status: "active"
+    triggers:
+      - kind: "schedule"
+        cronExpression: "0 9 * * 1"
+        label: "weekly-monday-9am"
+        timezone: "America/Mazatlan"
+
+sidebar:
+  agents:
+    - "ceo"
+    - "scout"
+    - "qualifier"
+    - "designplanner"
+    - "webbuilder"
+    - "webqa"
+    - "webpublisher"
+    - "outreach"
+    - "conversationmanager"
+    - "closer"
+    - "dataanalyst"
+  projects:
+    - "onboarding"

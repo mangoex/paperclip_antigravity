@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diagnóstico digital de {{NOMBRE_NEGOCIO}} | Humanio</title>
+<meta name="description" content="Reporte de presencia digital de {{NOMBRE_NEGOCIO}} en {{CIUDAD}}.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  :root {
+    --accent: {{PALETTE_ACCENT}};
+    --accent-2: {{PALETTE_ACCENT_2}};
+    --accent-glow: {{PALETTE_ACCENT_GLOW_RGB}};
+  }
+  .page-hero {
+    padding: 160px 0 60px;
+    background:
+      radial-gradient(70% 60% at 80% 10%, rgba(var(--accent-glow), 0.18), transparent 60%),
+      radial-gradient(70% 60% at 10% 30%, rgba(129, 140, 248, 0.15), transparent 60%),
+      var(--bg-0);
+    border-bottom: 1px solid var(--border);
+  }
+  .page-hero h1 { max-width: 820px; }
+  .page-hero p  { max-width: 680px; }
+  .report-meta {
+    display: flex; gap: 28px; flex-wrap: wrap;
+    margin-top: 28px;
+    color: var(--fg-2); font-size: 0.88rem;
+  }
+  .report-meta span strong { color: var(--fg-1); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="brand"><span class="dot"></span> Humanio</div>
+  <ul>
+    <li><a href="../">Inicio</a></li>
+    <li><a href="../#diagnostico">Diagnóstico</a></li>
+    <li><a href="../reporte/">Reporte</a></li>
+    <li><a href="../propuesta/">Propuesta</a></li>
+  </ul>
+</nav>
+
+<header class="page-hero">
+  <div class="container">
+    <span class="hero__eyebrow"><span class="pulse"></span> Reporte preparado para {{NOMBRE_NEGOCIO}}</span>
+    <h1>Diagnóstico digital de <span class="grad">{{NOMBRE_NEGOCIO}}</span></h1>
+    <p class="hero__sub">Una mirada honesta y específica a cómo aparece tu negocio hoy en internet — y dónde están las oportunidades concretas en {{CIUDAD}}.</p>
+    <div class="report-meta">
+      <span><strong>Negocio:</strong> {{NOMBRE_NEGOCIO}}</span>
+      <span><strong>Giro:</strong> {{GIRO}}</span>
+      <span><strong>Ciudad:</strong> {{CIUDAD}}, {{PAIS}}</span>
+      <span><strong>Fecha:</strong> {{FECHA_REPORTE}}</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <section>
+    <div class="container">
+      <span class="section-eyebrow">Resumen ejecutivo</span>
+      <h2>Lo que encontramos en {{NOMBRE_NEGOCIO}}</h2>
+      <p class="section-lead">{{REPORTE_RESUMEN}}</p>
+
+      <div class="metric-grid">
+        <div class="metric">
+          <div class="metric__label">Búsquedas mensuales</div>
+          <div class="metric__value">{{METRIC_BUSQUEDAS}}</div>
+          <div class="metric__delta">para "{{KEYWORD_PRINCIPAL}}" en {{CIUDAD}}</div>
+        </div>
+        <div class="metric">
+          <div class="metric__label">Posición actual</div>
+          <div class="metric__value">{{METRIC_POSICION}}</div>
+          <div class="metric__delta {{METRIC_POSICION_CLASS}}">{{METRIC_POSICION_NOTE}}</div>
+        </div>
+        <div class="metric">
+          <div class="metric__label">Reseñas Google</div>
+          <div class="metric__value">{{METRIC_RESENAS_VALUE}}</div>
+          <div class="metric__delta {{METRIC_RESENAS_CLASS}}">{{METRIC_RESENAS_NOTE}}</div>
+        </div>
+        <div class="metric">
+          <div class="metric__label">Presencia digital</div>
+          <div class="metric__value">{{METRIC_PRESENCIA_SCORE}}</div>
+          <div class="metric__delta {{METRIC_PRESENCIA_CLASS}}">{{METRIC_PRESENCIA_NOTE}}</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="container">
+      <span class="section-eyebrow">Análisis detallado</span>
+      <h2>Lo que está funcionando y lo que no</h2>
+
+      <div class="section-block">
+        <h3>Presencia en Google</h3>
+        <p>{{ANALISIS_GOOGLE}}</p>
+      </div>
+
+      <div class="section-block">
+        <h3>Sitio web actual</h3>
+        <p>{{ANALISIS_SITIO}}</p>
+      </div>
+
+      <div class="section-block">
+        <h3>Redes sociales</h3>
+        <p>{{ANALISIS_REDES}}</p>
+      </div>
+
+      <div class="section-block">
+        <h3>Reputación y reseñas</h3>
+        <p>{{ANALISIS_REPUTACION}}</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="container">
+      <span class="section-eyebrow">Oportunidad</span>
+      <h2>Dónde está el dinero que se está yendo</h2>
+      <p class="section-lead">{{OPORTUNIDAD_LEAD}}</p>
+
+      <ul class="finding-list">
+        <li>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M5 12l7-7 7 7"/></svg>
+          <span>{{OPORTUNIDAD_1}}</span>
+        </li>
+        <li>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M5 12l7-7 7 7"/></svg>
+          <span>{{OPORTUNIDAD_2}}</span>
+        </li>
+        <li>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M5 12l7-7 7 7"/></svg>
+          <span>{{OPORTUNIDAD_3}}</span>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <div class="container">
+      <div class="final-cta">
+        <span class="section-eyebrow">Siguiente paso</span>
+        <h2>Tu propuesta concreta ya está lista</h2>
+        <p>Con base en este diagnóstico, recomendamos el paquete <strong>{{PAQUETE_RECOMENDADO_NOMBRE}}</strong>. Los detalles, precios e inclusiones están en la propuesta.</p>
+        <div class="cta-row">
+          <a class="btn btn--primary" href="../propuesta/">Ver propuesta <span class="arrow">→</span></a>
+          <a class="btn btn--ghost" href="../">Volver al inicio</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="brand-mini"><strong>Humanio</strong> — Inteligencia Artificial para negocios</div>
+  <div>contacto@humanio.digital · humanio.digital</div>
+</footer>
+
+</body>
+</html>
