@@ -229,6 +229,11 @@ app.post('/api/run-demo', (req, res) => {
   });
 
   child.on('close', (code) => {
+    if (code !== 0) {
+      console.error(`Subproceso coordinator.js demo falló con código de salida: ${code}`);
+      broadcastEvent('status', { step: 5, agent: 'webpublisher', status: 'failed' });
+      return;
+    }
     broadcastEvent('status', { step: 5, agent: 'webpublisher', status: 'success' });
     broadcastEvent('complete-demo', {
       slug,

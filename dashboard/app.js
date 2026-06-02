@@ -62,6 +62,12 @@ document.addEventListener('DOMContentLoaded', () => {
     linkReport.href = data.urls.reporte;
     
     demoModal.classList.add('active');
+
+    // Reactivar botones de Demo
+    document.querySelectorAll('.btn-build-demo').forEach(btn => {
+      btn.disabled = false;
+      btn.textContent = 'Generar Demo Web';
+    });
   });
 
   // Limpiar terminal
@@ -89,6 +95,13 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Resetear nodos de la UI
     resetPipelineNodes();
+    
+    // Resetear nombres visuales de los nodos para el flujo outbound
+    nodes.scout.querySelector('.node-name').textContent = 'Scout';
+    nodes.qualifier.querySelector('.node-name').textContent = 'Qualifier';
+    nodes.outreach.querySelector('.node-name').textContent = 'Outreach';
+    nodes.closer.querySelector('.node-name').textContent = 'Closer';
+    
     consoleStream.innerHTML = '<div class="log-line system-line">&gt; Iniciando conexión con el pipeline de agentes...</div>';
 
     const payload = {

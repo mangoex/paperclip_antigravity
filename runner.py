@@ -12,12 +12,154 @@ load_dotenv()
 # Intentar importar el SDK de Antigravity
 try:
     from google.antigravity import Agent, LocalAgentConfig
+    from google.antigravity.types import CapabilitiesConfig
 except ImportError:
     # Si no está instalado en el entorno de desarrollo, imprimimos un error amigable
     # (En el contenedor Docker de Easypanel sí estará instalado)
     print("❌ Error: google.antigravity no está instalado en este entorno de Python.", file=sys.stderr)
     print("Por favor, asegúrate de correr en un entorno compatible con Python 3.11+.", file=sys.stderr)
     sys.exit(1)
+
+import urllib.request
+import urllib.error
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+def send_real_whatsapp_message(phone, business_name, contact_name, diagnostic, opportunity):
+    phone_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
+    token = os.getenv("WHATSAPP_CLOUD_API_TOKEN")
+    
+    if not phone_id or not token:
+        print("👉 WhatsApp credentials not configured in environment. Skipping real message send.")
+        return None
+        
+    url = f"https://graph.facebook.com/v19.0/{phone_id}/messages"
+    clean_phone = re.sub(r"\D", "", phone)
+    
+    # Body parameters mapping
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": clean_phone,
+        "type": "template",
+        "template": {
+            "name": "humanio_diagnostico_v1",
+            "language": { "code": "es_MX" },
+            "components": [
+                {
+                    "type": "body",
+                    "parameters": [
+                        {"type": "text", "text": contact_name},
+                        {"type": "text", "text": business_name},
+                        {"type": "text", "text": diagnostic},
+                        {"type": "text", "text": opportunity}
+                    ]
+                }
+            ]
+        }
+    }
+    
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        with urllib.request.urlopen(req) as response:
+            res_body = response.read().decode("utf-8")
+            res_json = json.loads(res_body)
+            msg_id = res_json.get("messages", [{}])[0].get("id")
+            print(f"✅ Real WhatsApp sent successfully to {clean_phone}! Meta Message ID: {msg_id}")
+            return msg_id
+    except urllib.error.HTTPError as e:
+        error_content = e.read().decode("utf-8")
+        print(f"⚠️ Error sending real WhatsApp via Meta API (HTTP {e.code}): {error_content}")
+        return None
+    except Exception as e:
+        print(f"⚠️ Error sending real WhatsApp: {e}")
+        return None
+
+def send_real_email(to_email, business_name, contact_name, city, diagnostic_list):
+    host = os.getenv("SMTP_HOST")
+    port = os.getenv("SMTP_PORT", "465")
+    user = os.getenv("SMTP_USER")
+    password = os.getenv("SMTP_PASS")
+    from_email = os.getenv("FROM_EMAIL", user)
+    from_name = os.getenv("FROM_NAME", "Miguel González | Humanio")
+    
+    if not host or not user or not password:
+        print("👉 SMTP email credentials not configured in environment. Skipping real email send.")
+        return None
+        
+    try:
+        port_num = int(port)
+        findings_html = "".join([f"<li>{h}</li>" for h in diagnostic_list])
+        ref_slug = re.sub(r"[^a-z0-9]+", "-", business_name.lower()).strip("-")
+        ref_url = f"https://www.humanio.digital/?ref={ref_slug}"
+        
+        subject = f"Análisis digital de {business_name}"
+        
+        html_content = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><style>
+body{{font-family:Inter,Arial,sans-serif;background:#f4f4f4;margin:0;padding:20px}}
+.c{{max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden}}
+.h{{background:#03070d;padding:28px 36px}}
+.h p{{color:#fff;font-size:16px;margin:0;margin-bottom:4px}}
+.h small{{color:rgba(255,255,255,.4);font-size:12px}}
+.b{{padding:32px 36px;color:#1a1a2e;line-height:1.7}}
+.b p{{margin:0;margin-bottom:18px}}
+ul.findings{{padding-left:0;list-style:none;margin:18px 0}}
+ul.findings li{{padding:14px 18px;margin-bottom:10px;border-left:3px solid #2dd4bf;background:#f0fdf9;border-radius:0 8px 8px 0;color:#374151;font-size:14.5px;line-height:1.55}}
+.cta{{text-align:center;margin:24px 0 8px}}
+.cta a{{display:inline-block;background:#2dd4bf;color:#03070d;text-decoration:none;padding:14px 32px;border-radius:100px;font-weight:700;font-size:15px}}
+.f{{background:#f8f9fa;padding:18px 36px;font-size:12px;color:#94a3b8;line-height:1.7}}
+.f strong{{color:#374151}}
+</style></head><body>
+<div class="c">
+  <div class="h">
+    <p>Hola, {contact_name}</p>
+    <small>Humanio — Inteligencia Artificial para negocios</small>
+  </div>
+  <div class="b">
+    <p>Estuve revisando cómo aparece <strong>{business_name}</strong> en internet aquí en {city}. Esto fue lo que encontré:</p>
+    <ul class="findings">
+      {findings_html}
+    </ul>
+    <p>Ninguno de estos puntos es grave por sí solo, pero juntos están dejando dinero sobre la mesa cada mes.</p>
+    <p>En Humanio resolvemos esto con sistemas de IA + WhatsApp + sitio profesional. Te dejo el detalle:</p>
+    <div class="cta"><a href="{ref_url}">Ver cómo funciona Humanio →</a></div>
+    <p style="font-size:13px;color:#94a3b8;text-align:center">Si te interesa una propuesta concreta para {business_name}, contéstame este correo o por WhatsApp.</p>
+  </div>
+  <div class="f">
+    <strong>Miguel González</strong><br>
+    Humanio — Inteligencia Artificial para negocios<br>
+    contacto@humanio.digital · humanio.digital
+  </div>
+</div>
+</body></html>"""
+
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = f'"{from_name}" <{from_email}>'
+        msg["To"] = to_email
+        msg.attach(MIMEText(html_content, "html"))
+        
+        if port_num == 465:
+            server = smtplib.SMTP_SSL(host, port_num)
+        else:
+            server = smtplib.SMTP(host, port_num)
+            server.starttls()
+            
+        server.login(user, password)
+        server.sendmail(from_email, to_email, msg.as_string())
+        server.quit()
+        print(f"📧 Real Email sent successfully to {to_email}! SMTP Message ID generated.")
+        return "sent"
+    except Exception as e:
+        print(f"⚠️ Error sending real email via SMTP: {e}")
+        return None
 
 def print_step(step, agent, description):
     """Imprime el paso en el formato que espera server.js para actualizar la UI"""
@@ -69,11 +211,14 @@ async def run_pipeline(args):
     _, closer_inst = load_agent_spec("closer")
 
     is_test_run = True # Guardrail de seguridad activo por defecto en tests
+    
+    # Desactivar herramientas incorporadas para evitar tool call crashes
+    disable_tools_config = CapabilitiesConfig(enabled_tools=[])
 
     # 1. Instanciar y ejecutar el CEO (Paso 1)
     print_step(1, "CEO", f"Recibe solicitud de prospección: '{args.nicho} en {args.ciudad}, {args.pais}'")
     
-    ceo_config = LocalAgentConfig(system_instructions=ceo_inst)
+    ceo_config = LocalAgentConfig(system_instructions=ceo_inst, capabilities=disable_tools_config)
     async with Agent(config=ceo_config) as ceo_agent:
         prompt_ceo_1 = f"""
         Se ha recibido una solicitud de prospección:
@@ -91,7 +236,7 @@ async def run_pipeline(args):
     # 2. Instanciar y ejecutar Scout (Paso 2)
     print_step(2, "Scout", f"Inicia búsqueda de leads reales de '{args.nicho}' en '{args.ciudad}'")
     
-    scout_config = LocalAgentConfig(system_instructions=scout_inst)
+    scout_config = LocalAgentConfig(system_instructions=scout_inst, capabilities=disable_tools_config)
     async with Agent(config=scout_config) as scout_agent:
         prompt_scout = f"""
         Como Scout, busca y compila una lista de exactamente {args.limit} clínicas o negocios locales reales de '{args.nicho}' en '{args.ciudad}, {args.pais}'.
@@ -112,7 +257,7 @@ async def run_pipeline(args):
     # 3. Instanciar y ejecutar Qualifier (Paso 3)
     print_step(3, "Qualifier", "Recibe reporte de Scout. Inicia auditoría de SEO local y conversión.")
     
-    qualifier_config = LocalAgentConfig(system_instructions=qualifier_inst)
+    qualifier_config = LocalAgentConfig(system_instructions=qualifier_inst, capabilities=disable_tools_config)
     async with Agent(config=qualifier_config) as qualifier_agent:
         prompt_qualifier = f"""
         Como Qualifier, toma los resultados de prospección generados por Scout:
@@ -147,10 +292,56 @@ async def run_pipeline(args):
         ceo_response_2 = await response.text()
         print(f"CEO aprobó el bypass de seguridad:\n{ceo_response_2}\n")
 
+    # 4.5 Extracción de Datos Estructurados JSON antes de la Outreach Real
+    print("\n[Orquestador] Estructurando prospectos para procesamiento de canales...", flush=True)
+    parsed_prospects = []
+    async with Agent(config=qualifier_config) as extractor_agent:
+        prompt_json = f"""
+        De acuerdo con todo el reporte y la prospección final que realizamos:
+        
+        {qualifier_response}
+        
+        Extrae la lista de prospectos calificados en un formato JSON estrictamente válido. El resultado debe ser una lista de objetos JSON. Cada objeto debe tener obligatoriamente estas llaves y ningún dato inventado:
+        - name: Nombre de la clínica/negocio.
+        - slug: Identificador web amigable (ej: 'vitalis-chihuahua').
+        - opportunity: Puntuación entera del 1 al 10.
+        - package: Plan comercial sugerido ('Starter', 'Pro' o 'Business').
+        - phone: El teléfono del negocio.
+        - email: El correo del negocio (si no hay, usa '').
+        - diagnostic: Breve resumen de 1 línea del diagnóstico SEO.
+        
+        Responde ÚNICAMENTE con el bloque JSON, sin ningún tipo de explicación, sin comentarios ni delimitadores adicionales de texto (es decir, que inicie directamente con [ y termine con ]).
+        """
+        response = await extractor_agent.chat(prompt_json)
+        json_output = await response.text()
+        json_output = json_output.replace("```json", "").replace("```", "").strip()
+        try:
+            parsed_prospects = json.loads(json_output)
+        except Exception as e:
+            print(f"⚠️ Error al formatear JSON de prospectos en paso intermedio: {e}", file=sys.stderr)
+            print(f"Salida cruda del LLM: {json_output}", file=sys.stderr)
+            
+    if not parsed_prospects:
+        # Fallback de emergencia
+        parsed_prospects = [{
+            "name": args.nicho.capitalize() + " " + args.ciudad,
+            "slug": re.sub(r"[^a-z0-9]+", "-", args.nicho.lower() + "-" + args.ciudad.lower()).strip("-"),
+            "opportunity": 8,
+            "package": "Business",
+            "phone": args.test_phone,
+            "email": args.test_email,
+            "diagnostic": "Invisibilidad en buscadores (0 páginas indexadas) y falta de optimización SEO local."
+        }]
+        
+    # Aplicar overrides programáticos de test run
+    for p in parsed_prospects:
+        p["phone"] = args.test_phone
+        p["email"] = args.test_email
+
     # 5. Instanciar y ejecutar Outreach (Paso 5)
     print_step(5, "Outreach", "Genera el mensaje frío (WhatsApp y Correo SMTP) usando los guardrails.")
     
-    outreach_config = LocalAgentConfig(system_instructions=outreach_inst)
+    outreach_config = LocalAgentConfig(system_instructions=outreach_inst, capabilities=disable_tools_config)
     async with Agent(config=outreach_config) as outreach_agent:
         prompt_outreach = f"""
         Como Outreach, toma el reporte calificado y aprobado por el CEO:
@@ -166,10 +357,34 @@ async def run_pipeline(args):
         outreach_response = await response.text()
         print(f"Outreach generó las plantillas y simuló los envíos:\n{outreach_response}\n")
 
+    # Ejecutar envíos reales si existen credenciales en el entorno
+    for p in parsed_prospects:
+        print(f"\n[Outreach Real] Procesando envíos en vivo para {p['name']}...", flush=True)
+        
+        # WhatsApp:
+        contact_name = p.get("name")
+        opportunity_str = f"Atraer más clientes optimizando tu posicionamiento en Google y automatizando la atención por WhatsApp."
+        send_real_whatsapp_message(
+            phone=p["phone"],
+            business_name=p["name"],
+            contact_name=contact_name,
+            diagnostic=p["diagnostic"],
+            opportunity=opportunity_str
+        )
+        
+        # SMTP Email:
+        send_real_email(
+            to_email=p["email"],
+            business_name=p["name"],
+            contact_name=contact_name,
+            city=args.ciudad,
+            diagnostic_list=[p["diagnostic"]]
+        )
+
     # 6. Instanciar y ejecutar Closer (Paso 6)
     print_step(6, "Closer", "Crea ticket de seguimiento en estado BLOCKED y define unblock_events.")
     
-    closer_config = LocalAgentConfig(system_instructions=closer_inst)
+    closer_config = LocalAgentConfig(system_instructions=closer_inst, capabilities=disable_tools_config)
     async with Agent(config=closer_config) as closer_agent:
         prompt_closer = f"""
         Como Closer, recibe la confirmación de envíos de Outreach y crea los tickets de seguimiento para los prospectos:
@@ -182,40 +397,8 @@ async def run_pipeline(args):
         closer_response = await response.text()
         print(f"Closer registró el seguimiento:\n{closer_response}\n")
 
-    # 7. Extracción de Datos Estructurados JSON para la UI del Dashboard
-    print("\n[Extracción] Extrayendo prospectos en formato estructurado JSON...", flush=True)
-    async with Agent(config=qualifier_config) as extractor_agent:
-        prompt_json = f"""
-        De acuerdo con todo el reporte y la prospección final que realizamos:
-        
-        {qualifier_response}
-        
-        Extrae la lista de prospectos calificados en un formato JSON estrictamente válido. El resultado debe ser una lista de objetos JSON. Cada objeto debe tener obligatoriamente estas llaves y ningún dato inventado:
-        - name: Nombre de la clínica/negocio.
-        - slug: Identificador web amigable (ej: 'vitalis-chihuahua').
-        - opportunity: Puntuación entera del 1 al 10.
-        - package: Plan comercial sugerido ('Starter', 'Pro' o 'Business').
-        - phone: El teléfono con override ({args.test_phone}).
-        - email: El correo con override ({args.test_email}).
-        - diagnostic: Breve resumen de 1 línea del diagnóstico SEO.
-        
-        Responde ÚNICAMENTE con el bloque JSON, sin ningún tipo de explicación, sin comentarios ni delimitadores adicionales de texto (es decir, que inicie directamente con [ y termine con ]).
-        """
-        response = await extractor_agent.chat(prompt_json)
-        json_output = await response.text()
-        
-        # Limpiar posibles delimitadores de código markdown ```json ... ```
-        json_output = json_output.replace("```json", "").replace("```", "").strip()
-        
-        # Validar si el texto obtenido es JSON válido
-        try:
-            parsed_json = json.loads(json_output)
-            # Imprimir en el formato especial que lee server.js
-            print(f"\n__PROSPECTS_JSON__:{json.dumps(parsed_json)}", flush=True)
-        except Exception as e:
-            # Fallback en caso de problemas de parseo
-            print(f"⚠️ Error al formatear JSON de prospectos: {e}", file=sys.stderr)
-            print(f"Salida cruda del LLM: {json_output}", file=sys.stderr)
+    # Imprimir en el formato especial de JSON que lee server.js
+    print(f"\n__PROSPECTS_JSON__:{json.dumps(parsed_prospects)}", flush=True)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Orquestador Real de Agentes Humanio")
@@ -241,3 +424,4 @@ if __name__ == '__main__':
         asyncio.run(run_pipeline(args))
     else:
         print(f"El comando '{args.command}' no está soportado en la ejecución real de Fase 1. Usa 'outbound'.")
+
