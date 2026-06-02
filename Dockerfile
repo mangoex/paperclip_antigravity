@@ -1,5 +1,5 @@
 # Base image con Node.js
-FROM node:20-bullseye-slim
+FROM node:20-bookworm-slim
 
 # Instalar Python 3 y pip para ejecutar el SDK de Antigravity
 RUN apt-get update && apt-get install -y \
