@@ -147,9 +147,14 @@ const coordinator = new AntigravityCoordinator();
 if (command === 'status') {
   await coordinator.printStatus();
 } else if (command === 'outbound') {
-  await coordinator.runOutbound("dentistas", "Chihuahua", "México");
+  const nicho = args[1] || "dentistas";
+  const ciudad = args[2] || "Chihuahua";
+  const pais = args[3] || "México";
+  await coordinator.runOutbound(nicho, ciudad, pais);
 } else if (command === 'demo') {
-  await coordinator.runInboundDemo("Distrito Dental", "distritodental-chihuahua");
+  const name = args[1] || "Distrito Dental";
+  const slug = args[2] || "distritodental-chihuahua";
+  await coordinator.runInboundDemo(name, slug);
 } else {
   console.log(`Comando no reconocido. Comandos válidos: status, outbound, demo.`);
 }

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Humanio — Dashboard de Orquestación Agéntica</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div class="glow-bg" aria-hidden="true"></div>
+  
+  <header class="header">
+    <div class="logo">
+      <span class="pulse-dot"></span>
+      <strong>Humanio</strong> <span class="divider">|</span> <span class="subtitle">Control de Orquestación</span>
+    </div>
+    <div class="system-status">
+      Status: <span class="status-active">ONLINE</span>
+    </div>
+  </header>
+
+  <main class="dashboard-grid">
+    <!-- Panel Izquierdo: Configuración e Inputs -->
+    <section class="panel control-panel">
+      <h2 class="panel-title">Nueva Prospección</h2>
+      <form id="outbound-form" class="form">
+        <div class="form-group">
+          <label for="nicho">Giro / Nicho</label>
+          <input type="text" id="nicho" value="Dentistas" required>
+        </div>
+        <div class="form-group">
+          <label for="ciudad">Ciudad</label>
+          <input type="text" id="ciudad" value="Chihuahua" required>
+        </div>
+        <div class="form-group">
+          <label for="pais">País</label>
+          <input type="text" id="pais" value="México" required>
+        </div>
+        <div class="form-group">
+          <label for="limit">Cantidad de Prospectos</label>
+          <input type="number" id="limit" value="3" min="1" max="20" required>
+        </div>
+        <div class="form-divider">Guardrails de Seguridad</div>
+        <div class="form-group">
+          <label for="test-phone">Teléfono de Prueba (WhatsApp)</label>
+          <input type="text" id="test-phone" value="5216145551234" placeholder="Ej: 521614...">
+        </div>
+        <div class="form-group">
+          <label for="test-email">Email de Prueba (SMTP)</label>
+          <input type="email" id="test-email" value="test-outbound@humanio.digital">
+        </div>
+        <button type="submit" id="btn-run" class="btn btn-primary">Detonar Pipeline Outbound</button>
+      </form>
+    </section>
+
+    <!-- Panel Central: Pipeline visual y Terminal Logs -->
+    <section class="center-col">
+      <!-- Mapa de Nodos del Pipeline -->
+      <div class="panel pipeline-panel">
+        <h2 class="panel-title">Pipeline de Agentes Activos</h2>
+        <div class="pipeline-map">
+          <div class="node-wrapper">
+            <div class="node" id="node-ceo">
+              <div class="node-icon">💼</div>
+              <div class="node-name">CEO</div>
+              <div class="node-status">Idle</div>
+            </div>
+          </div>
+          <div class="connector"></div>
+          <div class="node-wrapper">
+            <div class="node" id="node-scout">
+              <div class="node-icon">🔍</div>
+              <div class="node-name">Scout</div>
+              <div class="node-status">Idle</div>
+            </div>
+          </div>
+          <div class="connector"></div>
+          <div class="node-wrapper">
+            <div class="node" id="node-qualifier">
+              <div class="node-icon">⚖️</div>
+              <div class="node-name">Qualifier</div>
+              <div class="node-status">Idle</div>
+            </div>
+          </div>
+          <div class="connector"></div>
+          <div class="node-wrapper">
+            <div class="node" id="node-outreach">
+              <div class="node-icon">📣</div>
+              <div class="node-name">Outreach</div>
+              <div class="node-status">Idle</div>
+            </div>
+          </div>
+          <div class="connector"></div>
+          <div class="node-wrapper">
+            <div class="node" id="node-closer">
+              <div class="node-icon">🤝</div>
+              <div class="node-name">Closer</div>
+              <div class="node-status">Idle</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Consola de Logs -->
+      <div class="panel console-panel">
+        <div class="console-header">
+          <span class="console-title">Live Terminal Stream</span>
+          <button id="btn-clear-console" class="btn-clear">Limpiar</button>
+        </div>
+        <div id="console-stream" class="console-stream">
+          <div class="log-line system-line">&gt; Sistema listo para iniciar orquestación...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Panel Derecho: Prospectos Encontrados y Demo Builder -->
+    <section class="panel leads-panel">
+      <h2 class="panel-title">Prospectos Calificados</h2>
+      <div id="leads-container" class="leads-container">
+        <div class="no-leads">Lanza el pipeline para buscar prospectos reales...</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal para la previsualización del build de la Demo -->
+  <div id="demo-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-title">Propuesta Web Generada</h3>
+        <button id="btn-close-modal" class="btn-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>El pipeline de Demo (DesignPlanner + WebBuilder + WebQA + WebPublisher) se ha completado. Aquí tienes los accesos directos locales para previsualizar los archivos generados:</p>
+        
+        <div class="preview-links">
+          <a id="link-landing" href="#" target="_blank" class="preview-card">
+            <div class="preview-icon">🖥️</div>
+            <div class="preview-text">
+              <h4>Landing Page Principal</h4>
+              <p>Folleto digital y diagnóstico de indexación</p>
+            </div>
+          </a>
+          <a id="link-proposal" href="#" target="_blank" class="preview-card">
+            <div class="preview-icon">💰</div>
+            <div class="preview-text">
+              <h4>Propuesta Comercial</h4>
+              <p>Planes y tabla de suscripciones oficiales</p>
+            </div>
+          </a>
+          <a id="link-report" href="#" target="_blank" class="preview-card">
+            <div class="preview-icon">📈</div>
+            <div class="preview-text">
+              <h4>Reporte de Auditoría</h4>
+              <p>Desglose de métricas SEO detectadas</p>
+            </div>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./app.js" type="module"></script>
+</body>
+</html>

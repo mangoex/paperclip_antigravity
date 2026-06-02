@@ -1,0 +1,20 @@
+{
+  "name": "paperclip-antigravity-dashboard",
+  "version": "1.0.0",
+  "description": "Visual orchestration dashboard for Humanio agent ecosystem in Antigravity",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "dev": "vite dashboard --port 3000",
+    "server": "node server.js",
+    "dashboard": "node server.js",
+    "desktop": "python3 run_app.py"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "chokidar": "^3.6.0"
+  },
+  "devDependencies": {
+    "vite": "^5.2.11"
+  }
+}
