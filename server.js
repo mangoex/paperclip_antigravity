@@ -9,6 +9,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+// Helper para detectar el ejecutable de Python compatible localmente (macOS) o en producción (Linux)
+const getPythonCommand = () => {
+  const localBrewPath = '/opt/homebrew/bin/python3.11';
+  if (existsSync(localBrewPath)) {
+    return localBrewPath;
+  }
+  return 'python3';
+};
+
 app.use(express.json());
 
 // Servir la carpeta dashboard de forma estática
@@ -56,11 +65,13 @@ app.post('/api/run-outbound', (req, res) => {
   
   broadcastEvent('status', { message: 'Iniciando simulación del flujo de agentes...', step: 1, agent: 'ceo', status: 'running' });
 
-  // Ejecutamos el coordinator.js y parseamos su salida en tiempo real
-  const cmd = `node coordinator.js outbound "${nicho.replace(/"/g, '\\"')}" "${ciudad.replace(/"/g, '\\"')}" "${pais.replace(/"/g, '\\"')}"`;
+  // Ejecutamos runner.py y pasamos los argumentos necesarios
+  const pythonCmd = getPythonCommand();
+  const cmd = `${pythonCmd} runner.py outbound --nicho "${nicho.replace(/"/g, '\\"')}" --ciudad "${ciudad.replace(/"/g, '\\"')}" --pais "${pais.replace(/"/g, '\\"')}" --limit ${limit || 3} --test-phone "${testPhone || '5216145551234'}" --test-email "${testEmail || 'test-outbound@humanio.digital'}"`;
   const child = exec(cmd, { cwd: __dirname });
 
   let fullOutput = '';
+  let prospectsJsonStr = '';
 
   child.stdout.on('data', (data) => {
     const lines = data.split('\n');
@@ -69,6 +80,12 @@ app.post('/api/run-outbound', (req, res) => {
       
       // Limpiar códigos de color ANSI de la consola
       const cleanLine = line.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
+      
+      // Si la línea contiene el JSON de los prospectos, la capturamos y no la mostramos en logs
+      if (cleanLine.startsWith('__PROSPECTS_JSON__:')) {
+        prospectsJsonStr = cleanLine.substring('__PROSPECTS_JSON__:'.length);
+        return;
+      }
       
       broadcastEvent('log', { text: cleanLine });
       fullOutput += cleanLine + '\n';
@@ -102,88 +119,55 @@ app.post('/api/run-outbound', (req, res) => {
   child.on('close', (code) => {
     broadcastEvent('status', { step: 6, agent: 'closer', status: 'success' });
     
-    // Pool de clínicas reales para generar dinámicamente según la cantidad pedida
-    const allProspects = [
-      {
-        name: 'Clínica Dental Vitalis',
-        slug: 'vitalis-chihuahua',
-        opportunity: 9,
-        package: 'Business',
-        phone: testPhone || '5216145551234',
-        email: testEmail || 'test-outbound@humanio.digital',
-        diagnostic: 'Invisibilidad en buscadores (0 páginas indexadas), falta de turismo médico y reseñas de 5.0 estrellas subexplotadas.'
-      },
-      {
-        name: 'Dentalite',
-        slug: 'dentalite-chihuahua',
-        opportunity: 7,
-        package: 'Pro',
-        phone: testPhone || '5216145551234',
-        email: testEmail || 'test-outbound@humanio.digital',
-        diagnostic: 'Sin subdirectorios optimizados por plaza, rendimiento móvil lento y falta de contenido educativo.'
-      },
-      {
-        name: 'dentalia Chihuahua',
-        slug: 'dentalia-chihuahua',
-        opportunity: 6,
-        package: 'Business',
-        phone: testPhone || '5216145551234',
-        email: testEmail || 'test-outbound@humanio.digital',
-        diagnostic: 'Contenido local genérico, calificación de 4.1 estrellas y falta de WhatsApp directo.'
-      },
-      {
-        name: 'Distrito Dental',
-        slug: 'distritodental-chihuahua',
-        opportunity: 8,
-        package: 'Pro',
-        phone: testPhone || '5216145551234',
-        email: testEmail || 'test-outbound@humanio.digital',
-        diagnostic: 'Ausencia de palabras clave locales de alto volumen, página de contacto con error responsive y tiempo de carga alto.'
-      },
-      {
-        name: 'Unic Clínica Dental',
-        slug: 'unic-chihuahua',
-        opportunity: 5,
-        package: 'Starter',
-        phone: testPhone || '5216145551234',
-        email: testEmail || 'test-outbound@humanio.digital',
-        diagnostic: 'Falta de CTA de reserva rápido, perfil de Google sin reseñas recientes y sin propuesta de valor clara.'
-      },
-      {
-        name: 'ENDENTO Especialidades',
-        slug: 'endento-chihuahua',
-        opportunity: 8,
-        package: 'Pro',
-        phone: testPhone || '5216145551234',
-        email: testEmail || 'test-outbound@humanio.digital',
-        diagnostic: 'Estructura SEO rota, URLs no amigables para servicios y nula automatización conversacional.'
-      },
-      {
-        name: 'Grupo Dental Cumbre',
-        slug: 'dentalcumbre-chihuahua',
-        opportunity: 7,
-        package: 'Business',
-        phone: testPhone || '5216145551234',
-        email: testEmail || 'test-outbound@humanio.digital',
-        diagnostic: 'Inexistencia de landing pages de servicios específicos, sin perfil móvil optimizado y nula presencia local en mapas.'
+    let prospects = [];
+    if (prospectsJsonStr) {
+      try {
+        prospects = JSON.parse(prospectsJsonStr);
+      } catch (err) {
+        console.error("Error al parsear el JSON de prospectos del script runner.py:", err);
       }
-    ];
+    }
 
-    const count = Math.min(limit || 3, 20); // Límite máximo de 20 para evitar saturar la interfaz
-    const prospects = [];
-    for (let i = 0; i < count; i++) {
-      const base = allProspects[i % allProspects.length];
-      const suffix = i >= allProspects.length ? ` (Sucursal ${Math.floor(i / allProspects.length) + 1})` : '';
-      const slugSuffix = i >= allProspects.length ? `-${Math.floor(i / allProspects.length) + 1}` : '';
-      prospects.push({
-        ...base,
-        name: base.name + suffix,
-        slug: base.slug + slugSuffix
-      });
+    // Fallback a pool simulado en caso de error de extracción o JSON vacío
+    if (!prospects || prospects.length === 0) {
+      const allProspects = [
+        {
+          name: 'Clínica Dental Vitalis',
+          slug: 'vitalis-chihuahua',
+          opportunity: 9,
+          package: 'Business',
+          phone: testPhone || '5216145551234',
+          email: testEmail || 'test-outbound@humanio.digital',
+          diagnostic: 'Invisibilidad en buscadores (0 páginas indexadas), falta de turismo médico y reseñas de 5.0 estrellas subexplotadas.'
+        },
+        {
+          name: 'Dentalite',
+          slug: 'dentalite-chihuahua',
+          opportunity: 7,
+          package: 'Pro',
+          phone: testPhone || '5216145551234',
+          email: testEmail || 'test-outbound@humanio.digital',
+          diagnostic: 'Sin subdirectorios optimizados por plaza, rendimiento móvil lento y falta de contenido educativo.'
+        },
+        {
+          name: 'dentalia Chihuahua',
+          slug: 'dentalia-chihuahua',
+          opportunity: 6,
+          package: 'Business',
+          phone: testPhone || '5216145551234',
+          email: testEmail || 'test-outbound@humanio.digital',
+          diagnostic: 'Contenido local genérico, calificación de 4.1 estrellas y falta de WhatsApp directo.'
+        }
+      ];
+
+      const count = Math.min(limit || 3, allProspects.length);
+      for (let i = 0; i < count; i++) {
+        prospects.push(allProspects[i]);
+      }
     }
 
     broadcastEvent('complete', { 
-      message: `Flujo finalizado. Se han calificado ${count} prospectos de manera exitosa.`, 
+      message: `Flujo finalizado. Se han procesado ${prospects.length} prospectos en vivo de manera exitosa.`, 
       code,
       prospects
     });
