@@ -7,6 +7,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnClearConsole = document.getElementById('btn-clear-console');
   const leadsContainer = document.getElementById('leads-container');
   
+  // Elementos de Pestañas
+  const tabActive = document.getElementById('tab-active');
+  const tabHistory = document.getElementById('tab-history');
+  const contentActive = document.getElementById('content-active');
+  const contentHistory = document.getElementById('content-history');
+
   // Nodos del pipeline
   const nodes = {
     ceo: document.getElementById('node-ceo'),
@@ -31,6 +37,29 @@ document.addEventListener('DOMContentLoaded', () => {
   // Inicializar stream de Server-Sent Events (SSE)
   const eventSource = new EventSource('/api/events');
 
+  // Manejo de clicks en Pestañas
+  tabActive.addEventListener('click', () => {
+    tabActive.classList.add('active');
+    tabHistory.classList.remove('active');
+    contentActive.classList.add('active');
+    contentHistory.classList.remove('active');
+    contentActive.style.display = 'block';
+    contentHistory.style.display = 'none';
+  });
+
+  tabHistory.addEventListener('click', () => {
+    tabHistory.classList.add('active');
+    tabActive.classList.remove('active');
+    contentHistory.classList.add('active');
+    contentActive.classList.remove('active');
+    contentHistory.style.display = 'block';
+    contentActive.style.display = 'none';
+    fetchAndRenderHistory();
+  });
+
+  // Cargar historial al inicio
+  fetchAndRenderHistory();
+
   eventSource.addEventListener('log', (event) => {
     const data = JSON.parse(event.data);
     appendConsoleLine(data.text, data.type);
@@ -49,6 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Renderizar tarjetas de prospectos calificados
     renderLeads(data.prospects);
+    fetchAndRenderHistory();
   });
 
   eventSource.addEventListener('complete-demo', (event) => {
@@ -68,6 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.disabled = false;
       btn.textContent = 'Generar Demo Web';
     });
+    fetchAndRenderHistory();
   });
 
   // Limpiar terminal
@@ -234,5 +265,120 @@ document.addEventListener('DOMContentLoaded', () => {
 
       leadsContainer.appendChild(card);
     });
+  }
+
+  // Carga y renderización del historial de prospectos
+  async function fetchAndRenderHistory() {
+    const historyContainer = document.getElementById('history-container');
+    try {
+      const response = await fetch('/api/history');
+      const prospects = await response.json();
+      prospects.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      
+      if (!prospects || prospects.length === 0) {
+        historyContainer.innerHTML = '<div class="no-leads">No hay historial disponible...</div>';
+        return;
+      }
+      
+      historyContainer.innerHTML = '';
+      prospects.forEach(p => {
+        const card = document.createElement('div');
+        card.className = 'lead-card';
+        
+        const isHighOpportunity = p.opportunity >= 8;
+        
+        let badgeClass = 'badge-active';
+        let badgeText = `${p.lastStage} [Active]`;
+        if (p.status === 'success') {
+          badgeClass = 'badge-success';
+          badgeText = `${p.lastStage} [Done]`;
+        } else if (p.status === 'failed') {
+          badgeClass = 'badge-failed';
+          badgeText = `${p.lastStage} [Failed]`;
+        }
+        
+        const dateStr = new Date(p.timestamp).toLocaleString('es-MX', {
+          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+
+        const hasDemo = p.urls && p.urls.principal;
+        const demoBtnHtml = hasDemo 
+          ? `<button class="btn btn-sm btn-secondary btn-view-demo">Ver Demo</button>`
+          : `<button class="btn btn-sm btn-primary btn-build-demo">Generar Demo Web</button>`;
+
+        card.innerHTML = `
+          <div class="lead-header">
+            <span class="lead-name">${p.name}</span>
+            <span class="lead-score ${isHighOpportunity ? 'high' : ''}">Score: ${p.opportunity}/10</span>
+          </div>
+          <div style="margin: 8px 0 12px;">
+            <span class="badge ${badgeClass}">${badgeText}</span>
+            <span class="lead-card-timestamp">${dateStr}</span>
+          </div>
+          <div class="lead-details">
+            <span><strong>Giro:</strong> Odontología</span>
+            <span><strong>Teléfono:</strong> ${p.phone}</span>
+            <span><strong>Email:</strong> ${p.email}</span>
+          </div>
+          <div class="lead-diagnostic">
+            ${p.diagnostic}
+          </div>
+          <div class="lead-actions">
+            <button class="btn btn-sm btn-secondary btn-diagnostic">Ver Diagnóstico</button>
+            ${demoBtnHtml}
+          </div>
+        `;
+
+        card.querySelector('.btn-diagnostic').addEventListener('click', () => {
+          appendConsoleLine(`\n[Auditoría SEO - ${p.name}]:`, 'system');
+          appendConsoleLine(`- Diagnóstico: ${p.diagnostic}`);
+          appendConsoleLine(`- Plan sugerido: Paquete ${p.package}`);
+          appendConsoleLine(`- Último Agente: ${p.lastStage.toUpperCase()} (${p.status})\n`);
+        });
+
+        if (hasDemo) {
+          card.querySelector('.btn-view-demo').addEventListener('click', () => {
+            modalTitle.textContent = `Propuesta Generada: ${p.name}`;
+            linkLanding.href = p.urls.principal;
+            linkProposal.href = p.urls.propuesta;
+            linkReport.href = p.urls.reporte;
+            demoModal.classList.add('active');
+          });
+        } else {
+          card.querySelector('.btn-build-demo').addEventListener('click', async (e) => {
+            const btn = e.target;
+            btn.disabled = true;
+            btn.textContent = 'Construyendo...';
+            
+            resetPipelineNodes();
+            nodes.scout.querySelector('.node-name').textContent = 'DesignPlanner';
+            nodes.qualifier.querySelector('.node-name').textContent = 'WebBuilder';
+            nodes.outreach.querySelector('.node-name').textContent = 'WebQA';
+            nodes.closer.querySelector('.node-name').textContent = 'WebPublisher';
+            
+            consoleStream.innerHTML = `<div class="log-line system-line">&gt; Iniciando pipeline de Demo para ${p.name}...</div>`;
+
+            try {
+              const response = await fetch('/api/run-demo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ slug: p.slug, name: p.name })
+              });
+              const data = await response.json();
+              appendConsoleLine(`Status: ${data.message}`, 'system');
+            } catch (err) {
+              appendConsoleLine(`Error al detonar demo: ${err.message}`, 'error');
+              btn.disabled = false;
+              btn.textContent = 'Generar Demo Web';
+            }
+          });
+        }
+
+        historyContainer.appendChild(card);
+      });
+    } catch (err) {
+      console.error("Error al cargar el historial:", err);
+      historyContainer.innerHTML = '<div class="no-leads">Error al cargar el historial.</div>';
+    }
   }
 });

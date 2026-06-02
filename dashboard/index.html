@@ -118,9 +118,21 @@
 
     <!-- Panel Derecho: Prospectos Encontrados y Demo Builder -->
     <section class="panel leads-panel">
-      <h2 class="panel-title">Prospectos Calificados</h2>
-      <div id="leads-container" class="leads-container">
-        <div class="no-leads">Lanza el pipeline para buscar prospectos reales...</div>
+      <div class="panel-tabs">
+        <button class="tab-btn active" id="tab-active">En Vivo</button>
+        <button class="tab-btn" id="tab-history">Historial</button>
+      </div>
+      
+      <div class="tab-content active" id="content-active">
+        <div id="leads-container" class="leads-container">
+          <div class="no-leads">Lanza el pipeline para buscar prospectos reales...</div>
+        </div>
+      </div>
+      
+      <div class="tab-content" id="content-history" style="display: none;">
+        <div id="history-container" class="leads-container">
+          <div class="no-leads">Cargando historial de prospectos...</div>
+        </div>
       </div>
     </section>
   </main>

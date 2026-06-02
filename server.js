@@ -18,7 +18,59 @@ const getPythonCommand = () => {
   return 'python3';
 };
 
+const historyFilePath = path.join(__dirname, 'prospects_history.json');
+
+async function getHistory() {
+  try {
+    if (existsSync(historyFilePath)) {
+      const data = await fs.readFile(historyFilePath, 'utf-8');
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    console.error("Error reading prospects history file:", err);
+  }
+  return [];
+}
+
+async function saveHistory(history) {
+  try {
+    await fs.writeFile(historyFilePath, JSON.stringify(history, null, 2), 'utf-8');
+  } catch (err) {
+    console.error("Error writing prospects history file:", err);
+  }
+}
+
+async function addProspectsToHistory(prospects, lastStage, status) {
+  const history = await getHistory();
+  const timestamp = new Date().toISOString();
+  
+  prospects.forEach(p => {
+    const existingIndex = history.findIndex(h => h.slug === p.slug);
+    const updatedProspect = {
+      ...p,
+      timestamp,
+      lastStage,
+      status
+    };
+    if (existingIndex !== -1) {
+      if (history[existingIndex].urls) {
+        updatedProspect.urls = history[existingIndex].urls;
+      }
+      history[existingIndex] = updatedProspect;
+    } else {
+      history.push(updatedProspect);
+    }
+  });
+  
+  await saveHistory(history);
+}
+
 app.use(express.json());
+
+app.get('/api/history', async (req, res) => {
+  const history = await getHistory();
+  res.json(history);
+});
 
 // Servir la carpeta dashboard de forma estática
 app.use('/', express.static(path.join(__dirname, 'dashboard')));
@@ -123,15 +175,32 @@ app.post('/api/run-outbound', (req, res) => {
     broadcastEvent('log', { text: `[Error] ${data}`, type: 'error' });
   });
 
-  child.on('close', (code) => {
+  child.on('close', async (code) => {
     // Si el proceso de agentes falló (exited con código de error)
     if (code !== 0) {
       console.error(`Subproceso runner.py falló con código de salida: ${code}`);
       broadcastEvent('status', { agent: activeAgent, status: 'failed' });
+      
+      // Intentamos recuperar los prospectos del archivo temporal para registrar la falla en el historial
+      let failedProspects = [];
+      const tempFilePath = path.join(__dirname, 'tmp', 'current_prospects.json');
+      if (existsSync(tempFilePath)) {
+        try {
+          const tempData = await fs.readFile(tempFilePath, 'utf-8');
+          failedProspects = JSON.parse(tempData);
+        } catch (err) {
+          console.error("Error al leer prospectos temporales tras falla:", err);
+        }
+      }
+      
+      if (failedProspects.length > 0) {
+        await addProspectsToHistory(failedProspects, activeAgent, 'failed');
+      }
+
       broadcastEvent('complete', { 
         message: `El flujo de agentes falló y se detuvo en el agente: ${activeAgent.toUpperCase()}`, 
         code,
-        prospects: []
+        prospects: failedProspects
       });
       return;
     }
@@ -185,6 +254,9 @@ app.post('/api/run-outbound', (req, res) => {
       }
     }
 
+    // Guardar en el historial
+    await addProspectsToHistory(prospects, 'closer', 'success');
+
     broadcastEvent('complete', { 
       message: `Flujo finalizado. Se han procesado ${prospects.length} prospectos en vivo de manera exitosa.`, 
       code,
@@ -228,21 +300,44 @@ app.post('/api/run-demo', (req, res) => {
     });
   });
 
-  child.on('close', (code) => {
+  child.on('close', async (code) => {
     if (code !== 0) {
       console.error(`Subproceso coordinator.js demo falló con código de salida: ${code}`);
       broadcastEvent('status', { step: 5, agent: 'webpublisher', status: 'failed' });
+      
+      // Actualizar estado de demo fallida en el historial
+      const history = await getHistory();
+      const existingIndex = history.findIndex(h => h.slug === slug);
+      if (existingIndex !== -1) {
+        history[existingIndex].lastStage = 'webpublisher';
+        history[existingIndex].status = 'failed';
+        await saveHistory(history);
+      }
       return;
     }
+
+    // Generar urls de previsualización
+    const urls = {
+      principal: `/proposals/proposal-${slug}/index.html`,
+      propuesta: `/proposals/proposal-${slug}/propuesta/index.html`,
+      reporte: `/proposals/proposal-${slug}/reporte/index.html`
+    };
+
+    // Actualizar historial con éxito y urls
+    const history = await getHistory();
+    const existingIndex = history.findIndex(h => h.slug === slug);
+    if (existingIndex !== -1) {
+      history[existingIndex].lastStage = 'webpublisher';
+      history[existingIndex].status = 'success';
+      history[existingIndex].urls = urls;
+      await saveHistory(history);
+    }
+
     broadcastEvent('status', { step: 5, agent: 'webpublisher', status: 'success' });
     broadcastEvent('complete-demo', {
       slug,
       name,
-      urls: {
-        principal: `/proposals/proposal-${slug}/index.html`,
-        propuesta: `/proposals/proposal-${slug}/propuesta/index.html`,
-        reporte: `/proposals/proposal-${slug}/reporte/index.html`
-      }
+      urls
     });
   });
 });

@@ -338,6 +338,14 @@ async def run_pipeline(args):
         p["phone"] = args.test_phone
         p["email"] = args.test_email
 
+    # Guardar prospectos estructurados temporalmente en `./tmp/current_prospects.json`
+    try:
+        os.makedirs("./tmp", exist_ok=True)
+        with open("./tmp/current_prospects.json", "w", encoding="utf-8") as f:
+            json.dump(parsed_prospects, f, indent=2)
+    except Exception as e:
+        print(f"⚠️ Error al guardar ./tmp/current_prospects.json: {e}", file=sys.stderr)
+
     # 5. Instanciar y ejecutar Outreach (Paso 5)
     print_step(5, "Outreach", "Genera el mensaje frío (WhatsApp y Correo SMTP) usando los guardrails.")
     
