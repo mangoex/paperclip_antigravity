@@ -1,0 +1,18 @@
+[
+  {
+    "name": "Clínica Dental Vitalis",
+    "slug": "vitalis-los-mochis",
+    "opportunity": 9,
+    "package": "Business",
+    "phone": "5216672013019",
+    "email": "miguelespino@humanio.digital",
+    "diagnostic": "Invisibilidad en buscadores (0 páginas indexadas), falta de turismo médico y reseñas de 5.0 estrellas subexplotadas.",
+    "timestamp": "2026-06-02T03:40:00.000Z",
+    "lastStage": "closer",
+    "status": "success",
+    "whatsapp_status": "accepted_by_meta",
+    "whatsapp_id": "wamid.HBgNNTIxNjY3MjAxMzAxOQ-simulated",
+    "email_status": "sent",
+    "email_id": "smtp-msg-simulated-12345"
+  }
+]

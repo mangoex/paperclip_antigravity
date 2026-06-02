@@ -198,6 +198,107 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function buildFunnelTimelineHtml(p) {
+    // 1. WhatsApp 1 (Contacto Outbound)
+    let wa1Status = 'badge-active';
+    let wa1Text = 'WhatsApp 1: Pendiente';
+    let wa1Icon = '○';
+    
+    if (p.whatsapp_status === 'accepted_by_meta') {
+      wa1Status = 'badge-success';
+      wa1Text = 'WhatsApp 1: Enviado (Meta API)';
+      wa1Icon = '✓';
+    } else if (p.whatsapp_status === 'simulated') {
+      wa1Status = 'badge-warning';
+      wa1Text = 'WhatsApp 1: Simulado';
+      wa1Icon = '⚡';
+    } else if (p.whatsapp_status === 'failed') {
+      wa1Status = 'badge-failed';
+      wa1Text = 'WhatsApp 1: Falló';
+      wa1Icon = '✗';
+    }
+    
+    // 2. Email 1 (Contacto Outbound)
+    let emailStatus = 'badge-active';
+    let emailText = 'Email SMTP: Pendiente';
+    let emailIcon = '○';
+    
+    if (p.email_status === 'sent') {
+      emailStatus = 'badge-success';
+      emailText = 'Email SMTP: Enviado';
+      emailIcon = '✓';
+    } else if (p.email_status === 'simulated') {
+      emailStatus = 'badge-warning';
+      emailText = 'Email SMTP: Simulado';
+      emailIcon = '⚡';
+    } else if (p.email_status === 'failed') {
+      emailStatus = 'badge-failed';
+      emailText = 'Email SMTP: Falló';
+      emailIcon = '✗';
+    }
+
+    // 3. WhatsApp 2 (Seguimiento Día 3)
+    let wa2Status = 'badge-active';
+    let wa2Text = 'WhatsApp 2 (Día 3): Pendiente';
+    let wa2Icon = '○';
+    
+    // 4. WhatsApp 3 (Seguimiento Día 7)
+    let wa3Status = 'badge-active';
+    let wa3Text = 'WhatsApp 3 (Día 7): Pendiente';
+    let wa3Icon = '○';
+
+    // 5. Propuesta Personalizada (Demo Web)
+    let demoStatus = 'badge-active';
+    let demoText = 'Propuesta Web: No Construida';
+    let demoIcon = '○';
+    let demoLinksHtml = '';
+    
+    if (p.urls && p.urls.principal) {
+      demoStatus = 'badge-success';
+      demoText = 'Propuesta Web: Construida';
+      demoIcon = '✓';
+      demoLinksHtml = `
+        <div class="demo-links" style="margin-top: 6px; display: flex; gap: 8px; font-size: 0.78rem; width: 100%;">
+          <a href="${p.urls.principal}" target="_blank" style="color: var(--accent-cyan); text-decoration: none; border-bottom: 1px dashed var(--accent-cyan);">🖥️ Landing</a>
+          <a href="${p.urls.propuesta}" target="_blank" style="color: var(--accent-cyan); text-decoration: none; border-bottom: 1px dashed var(--accent-cyan);">💰 Planes</a>
+          <a href="${p.urls.reporte}" target="_blank" style="color: var(--accent-cyan); text-decoration: none; border-bottom: 1px dashed var(--accent-cyan);">📈 Reporte</a>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="funnel-timeline" style="margin: 12px 0; padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-secondary); font-weight: 700; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; margin-bottom: 4px;">Progreso del Embudo</div>
+        
+        <div style="display: flex; align-items: center; gap: 10px; font-size: 0.8rem;">
+          <span style="color: ${wa1Icon === '✓' ? 'var(--accent-green)' : (wa1Icon === '⚡' ? 'var(--accent-orange)' : 'var(--text-muted)')}; font-weight: bold; width: 14px; text-align: center;">${wa1Icon}</span>
+          <span class="badge ${wa1Status}" style="font-size: 0.65rem; padding: 2px 6px;">${wa1Text}</span>
+        </div>
+        
+        <div style="display: flex; align-items: center; gap: 10px; font-size: 0.8rem;">
+          <span style="color: ${emailIcon === '✓' ? 'var(--accent-green)' : (emailIcon === '⚡' ? 'var(--accent-orange)' : 'var(--text-muted)')}; font-weight: bold; width: 14px; text-align: center;">${emailIcon}</span>
+          <span class="badge ${emailStatus}" style="font-size: 0.65rem; padding: 2px 6px;">${emailText}</span>
+        </div>
+        
+        <div style="display: flex; align-items: center; gap: 10px; font-size: 0.8rem;">
+          <span style="color: var(--text-muted); font-weight: bold; width: 14px; text-align: center;">${wa2Icon}</span>
+          <span class="badge ${wa2Status}" style="font-size: 0.65rem; padding: 2px 6px;">${wa2Text}</span>
+        </div>
+        
+        <div style="display: flex; align-items: center; gap: 10px; font-size: 0.8rem;">
+          <span style="color: var(--text-muted); font-weight: bold; width: 14px; text-align: center;">${wa3Icon}</span>
+          <span class="badge ${wa3Status}" style="font-size: 0.65rem; padding: 2px 6px;">${wa3Text}</span>
+        </div>
+        
+        <div style="display: flex; align-items: center; gap: 10px; font-size: 0.8rem; flex-wrap: wrap;">
+          <span style="color: ${demoIcon === '✓' ? 'var(--accent-green)' : 'var(--text-muted)'}; font-weight: bold; width: 14px; text-align: center;">${demoIcon}</span>
+          <span class="badge ${demoStatus}" style="font-size: 0.65rem; padding: 2px 6px;">${demoText}</span>
+          ${demoLinksHtml}
+        </div>
+      </div>
+    `;
+  }
+
   function renderLeads(prospects) {
     leadsContainer.innerHTML = '';
     
@@ -220,6 +321,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="lead-diagnostic">
           ${p.diagnostic}
         </div>
+        ${buildFunnelTimelineHtml(p)}
         <div class="lead-actions">
           <button class="btn btn-sm btn-secondary btn-diagnostic">Ver Diagnóstico</button>
           <button class="btn btn-sm btn-primary btn-build-demo">Generar Demo Web</button>
@@ -323,6 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="lead-diagnostic">
             ${p.diagnostic}
           </div>
+          ${buildFunnelTimelineHtml(p)}
           <div class="lead-actions">
             <button class="btn btn-sm btn-secondary btn-diagnostic">Ver Diagnóstico</button>
             ${demoBtnHtml}

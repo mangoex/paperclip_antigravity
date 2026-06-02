@@ -372,22 +372,38 @@ async def run_pipeline(args):
         # WhatsApp:
         contact_name = p.get("name")
         opportunity_str = f"Atraer más clientes optimizando tu posicionamiento en Google y automatizando la atención por WhatsApp."
-        send_real_whatsapp_message(
+        wa_id = send_real_whatsapp_message(
             phone=p["phone"],
             business_name=p["name"],
             contact_name=contact_name,
             diagnostic=p["diagnostic"],
             opportunity=opportunity_str
         )
+        if wa_id:
+            p["whatsapp_status"] = "accepted_by_meta"
+            p["whatsapp_id"] = wa_id
+        else:
+            p["whatsapp_status"] = "simulated"
         
         # SMTP Email:
-        send_real_email(
+        email_sent = send_real_email(
             to_email=p["email"],
             business_name=p["name"],
             contact_name=contact_name,
             city=args.ciudad,
             diagnostic_list=[p["diagnostic"]]
         )
+        if email_sent:
+            p["email_status"] = "sent"
+        else:
+            p["email_status"] = "simulated"
+
+    # Guardar prospectos con estados actualizados
+    try:
+        with open("./tmp/current_prospects.json", "w", encoding="utf-8") as f:
+            json.dump(parsed_prospects, f, indent=2)
+    except Exception as e:
+        print(f"⚠️ Error al actualizar ./tmp/current_prospects.json: {e}", file=sys.stderr)
 
     # 6. Instanciar y ejecutar Closer (Paso 6)
     print_step(6, "Closer", "Crea ticket de seguimiento en estado BLOCKED y define unblock_events.")
