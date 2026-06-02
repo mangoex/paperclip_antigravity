@@ -72,6 +72,7 @@ app.post('/api/run-outbound', (req, res) => {
 
   let fullOutput = '';
   let prospectsJsonStr = '';
+  let activeAgent = 'ceo'; // Guardamos qué agente está activo en cada momento
 
   child.stdout.on('data', (data) => {
     const lines = data.split('\n');
@@ -92,20 +93,26 @@ app.post('/api/run-outbound', (req, res) => {
 
       // Parseamos los pasos para actualizar el estado visual de los agentes
       if (cleanLine.includes('[Paso 1]')) {
+        activeAgent = 'ceo';
         broadcastEvent('status', { step: 1, agent: 'ceo', status: 'running', message: cleanLine });
       } else if (cleanLine.includes('[Paso 2]')) {
+        activeAgent = 'scout';
         broadcastEvent('status', { step: 1, agent: 'ceo', status: 'success' });
         broadcastEvent('status', { step: 2, agent: 'scout', status: 'running', message: cleanLine });
       } else if (cleanLine.includes('[Paso 3]')) {
+        activeAgent = 'qualifier';
         broadcastEvent('status', { step: 2, agent: 'scout', status: 'success' });
         broadcastEvent('status', { step: 3, agent: 'qualifier', status: 'running', message: cleanLine });
       } else if (cleanLine.includes('[Paso 4]')) {
+        activeAgent = 'ceo';
         broadcastEvent('status', { step: 3, agent: 'qualifier', status: 'success' });
         broadcastEvent('status', { step: 4, agent: 'ceo', status: 'running', message: cleanLine });
       } else if (cleanLine.includes('[Paso 5]')) {
+        activeAgent = 'outreach';
         broadcastEvent('status', { step: 4, agent: 'ceo', status: 'success' });
         broadcastEvent('status', { step: 5, agent: 'outreach', status: 'running', message: cleanLine });
       } else if (cleanLine.includes('[Paso 6]')) {
+        activeAgent = 'closer';
         broadcastEvent('status', { step: 5, agent: 'outreach', status: 'success' });
         broadcastEvent('status', { step: 6, agent: 'closer', status: 'running', message: cleanLine });
       }
@@ -117,6 +124,18 @@ app.post('/api/run-outbound', (req, res) => {
   });
 
   child.on('close', (code) => {
+    // Si el proceso de agentes falló (exited con código de error)
+    if (code !== 0) {
+      console.error(`Subproceso runner.py falló con código de salida: ${code}`);
+      broadcastEvent('status', { agent: activeAgent, status: 'failed' });
+      broadcastEvent('complete', { 
+        message: `El flujo de agentes falló y se detuvo en el agente: ${activeAgent.toUpperCase()}`, 
+        code,
+        prospects: []
+      });
+      return;
+    }
+
     broadcastEvent('status', { step: 6, agent: 'closer', status: 'success' });
     
     let prospects = [];

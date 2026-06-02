@@ -297,13 +297,29 @@ body {
 
 /* Pipeline States animations */
 .node.running {
-  border-color: var(--accent-cyan);
-  box-shadow: 0 0 20px rgba(0, 242, 254, 0.4);
-  background: rgba(0, 242, 254, 0.05);
-  transform: scale(1.08);
+  animation: nodePulse 1.8s infinite ease-in-out;
+  background: rgba(0, 242, 254, 0.06);
 }
 .node.running .node-name { color: var(--text-primary); }
 .node.running .node-status { color: var(--accent-cyan); font-weight: 500; }
+
+@keyframes nodePulse {
+  0% {
+    box-shadow: 0 0 10px rgba(0, 242, 254, 0.3), inset 0 0 5px rgba(0, 242, 254, 0.1);
+    border-color: rgba(0, 242, 254, 0.5);
+    transform: scale(1.04);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(0, 242, 254, 0.75), inset 0 0 15px rgba(0, 242, 254, 0.3);
+    border-color: rgba(0, 242, 254, 1);
+    transform: scale(1.10);
+  }
+  100% {
+    box-shadow: 0 0 10px rgba(0, 242, 254, 0.3), inset 0 0 5px rgba(0, 242, 254, 0.1);
+    border-color: rgba(0, 242, 254, 0.5);
+    transform: scale(1.04);
+  }
+}
 
 .node.success {
   border-color: var(--accent-green);
