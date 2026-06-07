@@ -18,10 +18,76 @@ const getPythonCommand = () => {
   return 'python3';
 };
 
-const historyFilePath = path.join(__dirname, 'prospects_history.json');
+// Ruta del historial con soporte para volumen persistente en Docker/Easypanel (/app/data o /data)
+const getHistoryFilePath = () => {
+  const customPath = process.env.PERSISTENT_HISTORY_PATH;
+  if (customPath) return customPath;
+
+  const dataDir = path.join(__dirname, 'data');
+  if (existsSync('/data')) {
+    return '/data/prospects_history.json';
+  }
+  if (existsSync(dataDir)) {
+    return path.join(dataDir, 'prospects_history.json');
+  }
+  return path.join(__dirname, 'prospects_history.json');
+};
+
+const historyFilePath = getHistoryFilePath();
+
+// Función auxiliar para guardar prospecto en base de datos Supabase
+async function saveToSupabase(p) {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  if (!url || !key) return;
+
+  try {
+    const payload = {
+      negocio: p.name,
+      giro: p.giro || 'Odontología',
+      ciudad: p.ciudad || 'Chihuahua',
+      pais: p.pais || 'México',
+      telefono: p.phone,
+      email: p.email || null,
+      web_actual: (p.urls && p.urls.principal) ? p.urls.principal : null,
+      origen: 'scout_outbound',
+      etapa: p.lastStage || 'nuevo'
+    };
+
+    console.log(`[Supabase] Intentando guardar prospecto en base de datos: ${p.name}`);
+    const res = await fetch(`${url}/rest/v1/prospects`, {
+      method: 'POST',
+      headers: {
+        'apikey': key,
+        'Authorization': `Bearer ${key}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`[Supabase] Error al guardar en base de datos: HTTP ${res.status} - ${errText}`);
+    } else {
+      console.log(`[Supabase] Prospecto ${p.name} guardado con éxito.`);
+    }
+  } catch (err) {
+    console.error("[Supabase] Error de conexión con Supabase:", err);
+  }
+}
 
 async function getHistory() {
   try {
+    const defaultHistoryPath = path.join(__dirname, 'prospects_history.json');
+    if (!existsSync(historyFilePath) && historyFilePath !== defaultHistoryPath) {
+      if (existsSync(defaultHistoryPath)) {
+        console.log(`Inicializando historial persistente desde la plantilla por defecto en: ${historyFilePath}`);
+        await fs.mkdir(path.dirname(historyFilePath), { recursive: true }).catch(() => {});
+        await fs.copyFile(defaultHistoryPath, historyFilePath);
+      }
+    }
+
     if (existsSync(historyFilePath)) {
       const data = await fs.readFile(historyFilePath, 'utf-8');
       return JSON.parse(data);
@@ -44,7 +110,7 @@ async function addProspectsToHistory(prospects, lastStage, status) {
   const history = await getHistory();
   const timestamp = new Date().toISOString();
   
-  prospects.forEach(p => {
+  for (const p of prospects) {
     const existingIndex = history.findIndex(h => h.slug === p.slug);
     const updatedProspect = {
       ...p,
@@ -60,7 +126,11 @@ async function addProspectsToHistory(prospects, lastStage, status) {
     } else {
       history.push(updatedProspect);
     }
-  });
+    // Guardar asincrónicamente en Supabase si está configurado
+    saveToSupabase(updatedProspect).catch(err => {
+      console.error("Error al guardar en Supabase:", err);
+    });
+  }
   
   await saveHistory(history);
 }
