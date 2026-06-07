@@ -192,6 +192,215 @@ def load_agent_spec(agent_name):
                 
     return metadata, instructions
 
+
+def parse_yaml_block(block_text):
+    data = {}
+    lines = block_text.split("\n")
+    in_list_key = None
+    list_values = []
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+            
+        # Check if it's a list item
+        if line.startswith("-") and in_list_key:
+            val = line[1:].strip()
+            val = val.strip('"').strip("'")
+            list_values.append(val)
+            continue
+        else:
+            if in_list_key:
+                data[in_list_key] = list_values
+                in_list_key = None
+                list_values = []
+                
+        # Parse key: value
+        if ":" in line:
+            key, val = line.split(":", 1)
+            key = key.strip()
+            val = val.strip()
+            
+            # Check if this is the start of a list
+            if not val or val == "[]" or val.startswith("-"):
+                in_list_key = key
+                list_values = []
+            else:
+                # Clean up quotes and nulls
+                val = val.strip('"').strip("'")
+                if val.lower() == "null" or val == "":
+                    val = None
+                data[key] = val
+                
+    if in_list_key:
+        data[in_list_key] = list_values
+        
+    return data
+
+def extract_prospects_from_markdown(qualifier_response, default_city=""):
+    prospects = []
+    matches = list(re.finditer(r"```yaml\n(.*?)\n```", qualifier_response, re.DOTALL))
+    
+    for match in matches:
+        block_text = match.group(1)
+        start_pos = match.start()
+        
+        # Parse YAML fields manually
+        data = parse_yaml_block(block_text)
+        if not data or "nombre_negocio" not in data:
+            continue
+            
+        # Get opportunity score from preceding text
+        preceding_text = qualifier_response[max(0, start_pos - 1000):start_pos]
+        score_matches = list(re.finditer(r"(?:Score|Puntuaci\u00f3n|Puntuacion)[^0-9\n]*([0-9]+(?:\.[0-9]+)?)", preceding_text, re.IGNORECASE))
+        opportunity = 8
+        if score_matches:
+            try:
+                opportunity = int(round(float(score_matches[-1].group(1))))
+            except ValueError:
+                pass
+                
+        name = data.get("nombre_negocio") or data.get("name")
+        slug = data.get("ref_slug") or data.get("slug") or re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+        
+        package = data.get("paquete_recomendado") or data.get("package") or "Business"
+        package = str(package).capitalize()
+        if package not in ["Starter", "Pro", "Business"]:
+            package = "Business"
+            
+        phone = data.get("telefono") or data.get("phone") or ""
+        email = data.get("email") or data.get("email") or ""
+        
+        # Clean phone
+        phone = re.sub(r"\D", "", str(phone))
+        
+        # Diagnostics
+        diagnostico_list = data.get("diagnostico_hallazgos", [])
+        if isinstance(diagnostico_list, list) and diagnostico_list:
+            diagnostic = diagnostico_list[0]
+        else:
+            diagnostic = str(diagnostico_list) if diagnostico_list else "Falta de optimización SEO local y automatización de canales."
+            
+        ciudad = data.get("ciudad") or default_city
+        
+        prospects.append({
+            "name": name,
+            "slug": slug,
+            "opportunity": opportunity,
+            "package": package,
+            "phone": phone,
+            "email": email,
+            "ciudad": ciudad,
+            "diagnostic": diagnostic
+        })
+        
+    return prospects
+
+def extract_objects_from_raw_text(text):
+    objects = []
+    stack = []
+    start_idx = -1
+    in_string = False
+    escape = False
+    
+    for i, char in enumerate(text):
+        if escape:
+            escape = False
+            continue
+        if char == '\\':
+            escape = True
+            continue
+        if char == '"':
+            in_string = not in_string
+            continue
+            
+        if not in_string:
+            if char == '{':
+                if not stack:
+                    start_idx = i
+                stack.append('{')
+            elif char == '}':
+                if stack:
+                    stack.pop()
+                    if not stack:
+                        obj_str = text[start_idx:i+1]
+                        try:
+                            obj = json.loads(obj_str)
+                            objects.append(obj)
+                        except Exception:
+                            pass
+    return objects
+
+def try_repair_and_parse_json(json_str):
+    json_str = json_str.strip()
+    if json_str.startswith("```json"):
+        json_str = json_str[7:]
+    if json_str.endswith("```"):
+        json_str = json_str[:-3]
+    json_str = json_str.strip()
+    
+    try:
+        return json.loads(json_str)
+    except Exception:
+        pass
+        
+    if not json_str.startswith("["):
+        idx = json_str.find("[")
+        if idx != -1:
+            json_str = json_str[idx:]
+        else:
+            if json_str.startswith("{"):
+                pass
+            else:
+                return []
+
+    in_string = False
+    escape = False
+    stack = []
+    
+    for i, char in enumerate(json_str):
+        if escape:
+            escape = False
+            continue
+        if char == '\\':
+            escape = True
+            continue
+        if char == '"':
+            in_string = not in_string
+            continue
+        if not in_string:
+            if char in ['{', '[']:
+                stack.append(char)
+            elif char == '}':
+                if stack and stack[-1] == '{':
+                    stack.pop()
+            elif char == ']':
+                if stack and stack[-1] == '[':
+                    stack.pop()
+
+    repaired = json_str
+    if in_string:
+        repaired += '"'
+        
+    repaired = repaired.rstrip()
+    while repaired.endswith(','):
+        repaired = repaired[:-1].rstrip()
+        
+    for open_char in reversed(stack):
+        if open_char == '{':
+            repaired += '}'
+        elif open_char == '[':
+            repaired += ']'
+            
+    try:
+        return json.loads(repaired)
+    except Exception as e:
+        print(f"⚠️ Truncated JSON repair failed: {e}. Trying incremental extraction...", file=sys.stderr)
+        
+    return extract_objects_from_raw_text(json_str)
+
+
 async def run_pipeline(args):
     # Verificar GEMINI_API_KEY
     if not os.getenv("GEMINI_API_KEY"):
@@ -315,32 +524,46 @@ async def run_pipeline(args):
     # 4.5 Extracción de Datos Estructurados JSON antes de la Outreach Real
     print("\n[Orquestador] Estructurando prospectos para procesamiento de canales...", flush=True)
     parsed_prospects = []
-    async with Agent(config=qualifier_config) as extractor_agent:
-        prompt_json = f"""
-        De acuerdo con todo el reporte y la prospección final que realizamos:
+    
+    # Intentar primero la extracción directa por parser Python desde los bloques YAML del reporte
+    try:
+        parsed_prospects = extract_prospects_from_markdown(qualifier_response, default_city=args.ciudad)
+        if parsed_prospects:
+            print(f"✅ Extracción por parser Python completada con éxito. Encontrados {len(parsed_prospects)} prospectos de forma nativa.")
+    except Exception as parse_err:
+        print(f"⚠️ Parser Python falló: {parse_err}. Intentando con extractor_agent LLM...", file=sys.stderr)
+        parsed_prospects = []
         
-        {qualifier_response}
-        
-        Extrae la lista de todos los prospectos calificados y activados en un formato JSON estrictamente válido. El resultado debe ser una lista de objetos JSON. Cada objeto debe tener obligatoriamente estas llaves y ningún dato inventado:
-        - name: Nombre de la clínica/negocio.
-        - slug: Identificador web amigable (ej: 'vitalis-chihuahua').
-        - opportunity: Puntuación entera del 1 al 10.
-        - package: Plan comercial sugerido ('Starter', 'Pro' o 'Business').
-        - phone: El teléfono del negocio.
-        - email: El correo del negocio (si no hay, usa '').
-        - ciudad: La ciudad del negocio (ej: 'Culiacán').
-        - diagnostic: Breve resumen de 1 línea del diagnóstico SEO.
-        
-        Responde ÚNICAMENTE con el bloque JSON, sin ningún tipo de explicación, sin comentarios ni delimitadores adicionales de texto (es decir, que inicie directamente con [ y termine con ]).
-        """
-        response = await extractor_agent.chat(prompt_json)
-        json_output = await response.text()
-        json_output = json_output.replace("```json", "").replace("```", "").strip()
-        try:
-            parsed_prospects = json.loads(json_output)
-        except Exception as e:
-            print(f"⚠️ Error al formatear JSON de prospectos en paso intermedio: {e}", file=sys.stderr)
-            print(f"Salida cruda del LLM: {json_output}", file=sys.stderr)
+    # Si la extracción directa no devolvió resultados, consultamos con el LLM usando un agente limpio y reparador
+    if not parsed_prospects:
+        extractor_config = LocalAgentConfig(
+            system_instructions="Eres un asistente especializado en extraer listas de prospectos y convertirlas a JSON estrictamente válido. Responde únicamente con el JSON solicitado, sin explicaciones ni formato adicional.",
+            capabilities=disable_tools_config
+        )
+        async with Agent(config=extractor_config) as extractor_agent:
+            prompt_json = f"""
+            De acuerdo con el siguiente reporte de calificación:
+            
+            {qualifier_response}
+            
+            Extrae la lista de todos los prospectos calificados y activados en una lista de objetos JSON. Cada objeto debe tener obligatoriamente estas llaves:
+            - name: Nombre del negocio.
+            - slug: Identificador web amigable (ej: 'dentalmochis-mochis').
+            - opportunity: Puntuación entera del 1 al 10.
+            - package: Plan sugerido ('Starter', 'Pro' o 'Business').
+            - phone: Teléfono sin + (ej: '526688121110').
+            - email: Correo o vacío '' si no hay.
+            - ciudad: Ciudad del negocio (ej: 'Los Mochis').
+            - diagnostic: Breve resumen de 1 línea del diagnóstico SEO.
+            
+            Responde ÚNICAMENTE con el bloque JSON, comenzando con [ y terminando con ].
+            """
+            try:
+                response = await extractor_agent.chat(prompt_json)
+                json_output = await response.text()
+                parsed_prospects = try_repair_and_parse_json(json_output)
+            except Exception as e:
+                print(f"⚠️ Error en agente extractor LLM: {e}", file=sys.stderr)
             
     if not parsed_prospects:
         # Fallback de emergencia
