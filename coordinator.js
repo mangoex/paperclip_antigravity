@@ -128,6 +128,55 @@ class AntigravityCoordinator {
     
     this.logStep(3, "WebBuilder", `Construye el código de la landing page personalizada en /tmp/proposal-${slug}/`);
     
+    // Generar físicamente los archivos a partir del template
+    const templateSrc = path.join(__dirname, 'template_proposal');
+    const destRepo = path.join(__dirname, 'tmp', `proposal-${slug}`);
+    const destHumanio = path.join('/Users/miguelgonzalez/Codex/Humanio/tmp', `proposal-${slug}`);
+    
+    const replacements = {
+      "Clínica Dental Vitalis": prospectName,
+      "Clinica Dental Vitalis": prospectName,
+      "Vitalis": prospectName
+    };
+    
+    const copyDir = async (src, dest) => {
+      await fs.mkdir(dest, { recursive: true });
+      const entries = await fs.readdir(src, { withFileTypes: true });
+      for (let entry of entries) {
+        const srcPath = path.join(src, entry.name);
+        const destPath = path.join(dest, entry.name);
+        if (entry.isDirectory()) {
+          await copyDir(srcPath, destPath);
+        } else {
+          if (entry.name.endsWith('.html')) {
+            let content = await fs.readFile(srcPath, 'utf8');
+            for (let [target, replacement] of Object.entries(replacements)) {
+              content = content.split(target).join(replacement);
+            }
+            await fs.writeFile(destPath, content, 'utf8');
+          } else {
+            await fs.copyFile(srcPath, destPath);
+          }
+        }
+      }
+    };
+    
+    try {
+      this.logInfo("Generando archivos reales de propuesta a partir de la plantilla...");
+      await copyDir(templateSrc, destRepo);
+      
+      // Intentar copiar al workspace de Humanio si existe la carpeta tmp
+      const humanioTmpParent = '/Users/miguelgonzalez/Codex/Humanio/tmp';
+      const existsHumanioTmp = await fs.access(humanioTmpParent).then(() => true).catch(() => false);
+      if (existsHumanioTmp) {
+        await copyDir(templateSrc, destHumanio);
+        this.logInfo(`Propuesta copiada también a workspace de Humanio: ${destHumanio}`);
+      }
+      this.logInfo("✓ Código generado exitosamente.");
+    } catch (err) {
+      this.logWarning(`No se pudieron generar los archivos de propuesta reales: ${err.message}`);
+    }
+    
     this.logStep(4, "WebQA", "Realiza auditoría técnica: responsive, links rotos y checkout de Hotmart.");
     
     this.logStep(5, "WebPublisher", `Publica el sitio demo en Surge.sh: https://humanio.surge.sh/${slug}/`);
