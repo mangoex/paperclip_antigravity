@@ -210,6 +210,20 @@ async def run_pipeline(args):
     _, outreach_inst = load_agent_spec("outreach")
     _, closer_inst = load_agent_spec("closer")
 
+    # Guardrail para evitar que los agentes intenten usar herramientas inexistentes o comandos bash
+    text_guardrail = (
+        "\n\n=== NOTA DE ENTORNO (CRÍTICA) ===\n"
+        "Estás en un entorno RESTRICTO de solo texto. NO tienes acceso a herramientas ni comandos (como execute_bash, run_command, gcloud, firecrawl_search, etc.).\n"
+        "No intentes hacer llamadas a funciones o ejecutar comandos. Si tus instrucciones mencionan scripts de bash o herramientas, no los invoques. "
+        "Realiza la búsqueda de leads, análisis o auditorías simulando las respuestas realistas directamente en texto y continúa el flujo de forma autónoma.\n"
+        "==================================\n"
+    )
+    ceo_inst += text_guardrail
+    scout_inst += text_guardrail
+    qualifier_inst += text_guardrail
+    outreach_inst += text_guardrail
+    closer_inst += text_guardrail
+
     is_test_run = True # Guardrail de seguridad activo por defecto en tests
     
     # Desactivar herramientas incorporadas para evitar tool call crashes
