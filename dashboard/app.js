@@ -10,8 +10,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Elementos de Pestañas
   const tabActive = document.getElementById('tab-active');
   const tabHistory = document.getElementById('tab-history');
+  const tabContacts = document.getElementById('tab-contacts');
   const contentActive = document.getElementById('content-active');
   const contentHistory = document.getElementById('content-history');
+  const contentContacts = document.getElementById('content-contacts');
+  const contactsContainer = document.getElementById('contacts-container');
+  const crmSearch = document.getElementById('crm-search');
 
   // Nodos del pipeline
   const nodes = {
@@ -41,20 +45,43 @@ document.addEventListener('DOMContentLoaded', () => {
   tabActive.addEventListener('click', () => {
     tabActive.classList.add('active');
     tabHistory.classList.remove('active');
+    tabContacts.classList.remove('active');
     contentActive.classList.add('active');
     contentHistory.classList.remove('active');
+    contentContacts.classList.remove('active');
     contentActive.style.display = 'block';
     contentHistory.style.display = 'none';
+    contentContacts.style.display = 'none';
   });
 
   tabHistory.addEventListener('click', () => {
     tabHistory.classList.add('active');
     tabActive.classList.remove('active');
+    tabContacts.classList.remove('active');
     contentHistory.classList.add('active');
     contentActive.classList.remove('active');
+    contentContacts.classList.remove('active');
     contentHistory.style.display = 'block';
     contentActive.style.display = 'none';
+    contentContacts.style.display = 'none';
     fetchAndRenderHistory();
+  });
+
+  tabContacts.addEventListener('click', () => {
+    tabContacts.classList.add('active');
+    tabActive.classList.remove('active');
+    tabHistory.classList.remove('active');
+    contentContacts.classList.add('active');
+    contentActive.classList.remove('active');
+    contentHistory.classList.remove('active');
+    contentContacts.style.display = 'block';
+    contentActive.style.display = 'none';
+    contentHistory.style.display = 'none';
+    fetchAndRenderContacts();
+  });
+
+  crmSearch.addEventListener('input', () => {
+    fetchAndRenderContacts(crmSearch.value.trim());
   });
 
   // Cargar historial al inicio
@@ -482,6 +509,136 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       console.error("Error al cargar el historial:", err);
       historyContainer.innerHTML = '<div class="no-leads">Error al cargar el historial.</div>';
+    }
+  }
+
+  // Carga y renderización de la pestaña CRM de Contactos
+  async function fetchAndRenderContacts(filterQuery = '') {
+    try {
+      const response = await fetch('/api/history');
+      let prospects = await response.json();
+      
+      // Ordenar por fecha descendente
+      prospects.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      
+      // Aplicar filtro si existe
+      if (filterQuery) {
+        const query = filterQuery.toLowerCase();
+        prospects = prospects.filter(p => 
+          (p.name && p.name.toLowerCase().includes(query)) ||
+          (p.ciudad && p.ciudad.toLowerCase().includes(query)) ||
+          (p.email && p.email.toLowerCase().includes(query)) ||
+          (p.phone && p.phone.toLowerCase().includes(query))
+        );
+      }
+      
+      if (!prospects || prospects.length === 0) {
+        contactsContainer.innerHTML = '<div class="no-leads">No se encontraron contactos...</div>';
+        return;
+      }
+      
+      contactsContainer.innerHTML = '';
+      prospects.forEach(p => {
+        const card = document.createElement('div');
+        card.className = 'lead-card';
+        
+        // Estatus de Contacto (Meta/SMTP)
+        let contactBadgeClass = 'badge-failed';
+        let contactBadgeText = 'No Contactado';
+        if (p.whatsapp_status === 'accepted_by_meta' || p.email_status === 'sent') {
+          contactBadgeClass = 'badge-success';
+          contactBadgeText = 'Contactado';
+        } else if (p.whatsapp_status === 'simulated' || p.email_status === 'simulated') {
+          contactBadgeClass = 'badge-warning';
+          contactBadgeText = 'Simulado';
+        }
+        
+        // Estatus de Página
+        const hasDemo = p.urls && p.urls.principal;
+        let pageBadgeClass = hasDemo ? 'badge-success' : 'badge-active';
+        let pageBadgeText = hasDemo ? 'Tiene Página' : 'Sin Página';
+        
+        // Calificación Score
+        const isHighOpportunity = p.opportunity >= 8;
+        
+        const demoBtnHtml = hasDemo 
+          ? `<button class="btn btn-sm btn-secondary btn-view-demo">Ver Demo</button>`
+          : `<button class="btn btn-sm btn-primary btn-build-demo">Generar Demo Web</button>`;
+
+        card.innerHTML = `
+          <div class="lead-header">
+            <span class="lead-name">${p.name}</span>
+            <span class="lead-score ${isHighOpportunity ? 'high' : ''}">Score: ${p.opportunity}/10</span>
+          </div>
+          
+          <div class="lead-badges-row">
+            <span class="badge ${contactBadgeClass}">${contactBadgeText}</span>
+            <span class="badge ${pageBadgeClass}">${pageBadgeText}</span>
+          </div>
+          
+          <div class="lead-details">
+            <span><strong>Giro:</strong> Odontología</span>
+            <span><strong>Ciudad:</strong> ${p.ciudad || 'Chihuahua'}</span>
+            <span><strong>WhatsApp:</strong> ${p.phone}</span>
+            <span><strong>Email:</strong> ${p.email || 'No proporcionado'}</span>
+          </div>
+          
+          <div class="lead-actions" style="margin-top: 12px; display: flex; gap: 8px;">
+            <a href="https://wa.me/${p.phone.replace(/\D/g, '')}?text=Hola%20${encodeURIComponent(p.name)}%20" target="_blank" class="btn btn-sm btn-whatsapp" style="text-decoration: none; flex-grow: 1;">
+              💬 WhatsApp
+            </a>
+            <a href="mailto:${p.email || ''}" class="btn btn-sm btn-email" style="text-decoration: none; flex-grow: 1;">
+              ✉️ Correo
+            </a>
+            ${demoBtnHtml}
+          </div>
+        `;
+
+        // Event listener para el botón de ver demo
+        if (hasDemo) {
+          card.querySelector('.btn-view-demo').addEventListener('click', () => {
+            modalTitle.textContent = `Propuesta Generada: ${p.name}`;
+            linkLanding.href = p.urls.principal;
+            linkProposal.href = p.urls.propuesta;
+            linkReport.href = p.urls.reporte;
+            demoModal.classList.add('active');
+          });
+        } else {
+          // Detonar flujo demo
+          card.querySelector('.btn-build-demo').addEventListener('click', async (e) => {
+            const btn = e.target;
+            btn.disabled = true;
+            btn.textContent = 'Construyendo...';
+            
+            resetPipelineNodes();
+            nodes.scout.querySelector('.node-name').textContent = 'DesignPlanner';
+            nodes.qualifier.querySelector('.node-name').textContent = 'WebBuilder';
+            nodes.outreach.querySelector('.node-name').textContent = 'WebQA';
+            nodes.closer.querySelector('.node-name').textContent = 'WebPublisher';
+            
+            consoleStream.innerHTML = `<div class="log-line system-line">&gt; Inició propuesta Demo para ${p.name}...</div>`;
+            
+            try {
+              const response = await fetch('/api/run-demo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ slug: p.slug, name: p.name })
+              });
+              const data = await response.json();
+              appendConsoleLine(`Status: ${data.message}`, 'system');
+            } catch (err) {
+              appendConsoleLine(`Error al detonar demo: ${err.message}`, 'error');
+              btn.disabled = false;
+              btn.textContent = 'Generar Demo Web';
+            }
+          });
+        }
+        
+        contactsContainer.appendChild(card);
+      });
+    } catch (err) {
+      console.error("Error al cargar contactos en CRM:", err);
+      contactsContainer.innerHTML = '<div class="no-leads">Error al cargar contactos en CRM.</div>';
     }
   }
 });

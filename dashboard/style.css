@@ -717,3 +717,67 @@ body {
   display: block;
   margin-top: 4px;
 }
+
+/* CRM Controls & Search */
+.crm-controls {
+  margin-bottom: 16px;
+}
+
+#crm-search {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: 0.9rem;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+#crm-search:focus {
+  border-color: var(--accent-cyan);
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.15);
+}
+
+/* CRM Action Buttons */
+.btn-whatsapp {
+  background: rgba(57, 255, 20, 0.08) !important;
+  color: var(--accent-green) !important;
+  border: 1px solid rgba(57, 255, 20, 0.2) !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn-whatsapp:hover {
+  background: rgba(57, 255, 20, 0.18) !important;
+  border-color: var(--accent-green) !important;
+  transform: translateY(-1px);
+}
+
+.btn-email {
+  background: rgba(79, 172, 254, 0.08) !important;
+  color: var(--accent-blue) !important;
+  border: 1px solid rgba(79, 172, 254, 0.2) !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn-email:hover {
+  background: rgba(79, 172, 254, 0.18) !important;
+  border-color: var(--accent-blue) !important;
+  transform: translateY(-1px);
+}
+
+.lead-badges-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0 10px 0;
+}

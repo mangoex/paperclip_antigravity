@@ -121,6 +121,7 @@
       <div class="panel-tabs">
         <button class="tab-btn active" id="tab-active">En Vivo</button>
         <button class="tab-btn" id="tab-history">Historial</button>
+        <button class="tab-btn" id="tab-contacts">Contactos</button>
       </div>
       
       <div class="tab-content active" id="content-active">
@@ -132,6 +133,15 @@
       <div class="tab-content" id="content-history" style="display: none;">
         <div id="history-container" class="leads-container">
           <div class="no-leads">Cargando historial de prospectos...</div>
+        </div>
+      </div>
+
+      <div class="tab-content" id="content-contacts" style="display: none;">
+        <div class="crm-controls">
+          <input type="text" id="crm-search" placeholder="🔍 Buscar por nombre, ciudad o giro...">
+        </div>
+        <div id="contacts-container" class="leads-container">
+          <div class="no-leads">Cargando lista de contactos...</div>
         </div>
       </div>
     </section>
