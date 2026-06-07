@@ -278,13 +278,18 @@ async def run_pipeline(args):
         
         {scout_response}
         
-        Para cada prospecto:
+        Tu ticket de trabajo tiene los siguientes límites:
+        - requested_count: {args.limit}
+        - activation_limit: {args.limit}
+        
+        Para cada uno de los prospectos encontrados por el Scout:
         - Realiza la auditoría de SEO, sitemap e indexación.
         - Asigna un score de oportunidad de 1 a 10.
         - Identifica el mejor paquete de suscripción de Humanio (Starter de $27 USD/mes, Pro de $47 USD/mes o Business de $97 USD/mes).
         - Redacta un diagnóstico SEO conciso y accionable.
+        - Activa el prospecto para Outreach (no los dejes en reserva si no superan el límite de {args.limit} activos). Debes calificar y activar exactamente hasta {args.limit} prospectos.
         
-        Devuelve el reporte calificado en formato Markdown.
+        Devuelve el reporte calificado en formato Markdown con el listado detallado de prospectos activados.
         """
         response = await qualifier_agent.chat(prompt_qualifier)
         qualifier_response = await response.text()
@@ -299,7 +304,8 @@ async def run_pipeline(args):
         
         {qualifier_response}
         
-        Aplica los guardrails de seguridad (TEST RUN) ya que is_test_run es True. Confirma que todos los teléfonos reales sean reemplazados por el teléfono de prueba: {args.test_phone} y los emails por: {args.test_email}.
+        Verifica que se hayan calificado y activado hasta {args.limit} prospectos (de acuerdo con el límite de la campaña).
+        Aplica los guardrails de seguridad (TEST RUN) ya que is_test_run es True. Confirma que todos los teléfonos reales de los prospectos activados sean reemplazados por el teléfono de prueba: {args.test_phone} (si está configurado) y los emails por: {args.test_email} (si está configurado).
         Da la autorización formal para que Outreach simule el contacto.
         """
         response = await ceo_agent.chat(prompt_ceo_2)
@@ -315,13 +321,14 @@ async def run_pipeline(args):
         
         {qualifier_response}
         
-        Extrae la lista de prospectos calificados en un formato JSON estrictamente válido. El resultado debe ser una lista de objetos JSON. Cada objeto debe tener obligatoriamente estas llaves y ningún dato inventado:
+        Extrae la lista de todos los prospectos calificados y activados en un formato JSON estrictamente válido. El resultado debe ser una lista de objetos JSON. Cada objeto debe tener obligatoriamente estas llaves y ningún dato inventado:
         - name: Nombre de la clínica/negocio.
         - slug: Identificador web amigable (ej: 'vitalis-chihuahua').
         - opportunity: Puntuación entera del 1 al 10.
         - package: Plan comercial sugerido ('Starter', 'Pro' o 'Business').
         - phone: El teléfono del negocio.
         - email: El correo del negocio (si no hay, usa '').
+        - ciudad: La ciudad del negocio (ej: 'Culiacán').
         - diagnostic: Breve resumen de 1 línea del diagnóstico SEO.
         
         Responde ÚNICAMENTE con el bloque JSON, sin ningún tipo de explicación, sin comentarios ni delimitadores adicionales de texto (es decir, que inicie directamente con [ y termine con ]).
@@ -344,8 +351,13 @@ async def run_pipeline(args):
             "package": "Business",
             "phone": args.test_phone,
             "email": args.test_email,
+            "ciudad": args.ciudad,
             "diagnostic": "Invisibilidad en buscadores (0 páginas indexadas) y falta de optimización SEO local."
         }]
+    else:
+        for p in parsed_prospects:
+            if "ciudad" not in p or not p["ciudad"] or p["ciudad"].lower() == "null":
+                p["ciudad"] = args.ciudad
         
     # Aplicar overrides programáticos de test run solo si se ingresaron datos de prueba
     if args.test_phone or args.test_email:
@@ -376,7 +388,7 @@ async def run_pipeline(args):
         
         {qualifier_response}
         
-        Para cada prospecto calificado:
+        Para cada uno de los prospectos calificados y activados:
         - Muestra los parámetros del template de WhatsApp 'humanio_diagnostico_v1' ({{1}}, {{2}}, {{3}}, {{4}}).
         - Genera un correo electrónico SMTP completo en HTML con el diseño premium de Humanio (firmado por Miguel González y asunto de 6 palabras o menos).
         - Simula el envío exitoso al destino de prueba y reporta el ID de mensaje.
