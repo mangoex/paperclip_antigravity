@@ -361,7 +361,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="lead-details">
           <span><strong>Giro:</strong> Odontología</span>
           <span><strong>Paquete:</strong> ${p.package}</span>
-          <span><strong>Teléfono:</strong> ${p.phone}</span>
+          <span><strong>Teléfono:</strong> ${p.phone} ${p.test_phone ? `<span style="color: var(--accent-orange); font-size: 0.72rem; margin-left: 5px;">(Prueba: ${p.test_phone})</span>` : ''}</span>
         </div>
         <div class="lead-diagnostic">
           ${p.diagnostic}
@@ -534,8 +534,8 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
           <div class="lead-details">
             <span><strong>Giro:</strong> Odontología</span>
-            <span><strong>Teléfono:</strong> ${p.phone}</span>
-            <span><strong>Email:</strong> ${p.email}</span>
+            <span><strong>Teléfono:</strong> ${p.phone} ${p.test_phone ? `<span style="color: var(--accent-orange); font-size: 0.72rem; margin-left: 5px;">(Prueba: ${p.test_phone})</span>` : ''}</span>
+            <span><strong>Email:</strong> ${p.email} ${p.test_email ? `<span style="color: var(--accent-orange); font-size: 0.72rem; margin-left: 5px;">(Prueba: ${p.test_email})</span>` : ''}</span>
           </div>
           <div class="lead-diagnostic">
             ${p.diagnostic}
@@ -748,8 +748,8 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="lead-details">
             <span><strong>Giro:</strong> Odontología</span>
             <span><strong>Ciudad:</strong> ${p.ciudad || 'Chihuahua'}</span>
-            <span><strong>WhatsApp:</strong> ${p.phone}</span>
-            <span><strong>Email:</strong> ${p.email || 'No proporcionado'}</span>
+            <span><strong>WhatsApp:</strong> ${p.phone} ${p.test_phone ? `<span style="color: var(--accent-orange); font-size: 0.72rem; margin-left: 5px;">(Prueba: ${p.test_phone})</span>` : ''}</span>
+            <span><strong>Email:</strong> ${p.email || 'No proporcionado'} ${p.test_email ? `<span style="color: var(--accent-orange); font-size: 0.72rem; margin-left: 5px;">(Prueba: ${p.test_email})</span>` : ''}</span>
           </div>
           
           <div class="lead-actions" style="margin-top: 12px; display: flex; gap: 8px;">

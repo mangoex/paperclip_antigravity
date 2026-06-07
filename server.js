@@ -294,8 +294,10 @@ app.post('/api/run-outbound', (req, res) => {
           slug: 'vitalis-chihuahua',
           opportunity: 9,
           package: 'Business',
-          phone: testPhone || '5216145551234',
-          email: testEmail || 'test-outbound@humanio.digital',
+          phone: '5216672013019',
+          email: 'miguelespino@humanio.digital',
+          test_phone: testPhone || '',
+          test_email: testEmail || '',
           diagnostic: 'Invisibilidad en buscadores (0 páginas indexadas), falta de turismo médico y reseñas de 5.0 estrellas subexplotadas.'
         },
         {
@@ -303,8 +305,10 @@ app.post('/api/run-outbound', (req, res) => {
           slug: 'dentalite-chihuahua',
           opportunity: 7,
           package: 'Pro',
-          phone: testPhone || '5216145551234',
-          email: testEmail || 'test-outbound@humanio.digital',
+          phone: '5216144134732',
+          email: 'contacto@dentalite.mx',
+          test_phone: testPhone || '',
+          test_email: testEmail || '',
           diagnostic: 'Sin subdirectorios optimizados por plaza, rendimiento móvil lento y falta de contenido educativo.'
         },
         {
@@ -312,8 +316,10 @@ app.post('/api/run-outbound', (req, res) => {
           slug: 'dentalia-chihuahua',
           opportunity: 6,
           package: 'Business',
-          phone: testPhone || '5216145551234',
-          email: testEmail || 'test-outbound@humanio.digital',
+          phone: '5216144303127',
+          email: 'info@dentalia.com',
+          test_phone: testPhone || '',
+          test_email: testEmail || '',
           diagnostic: 'Contenido local genérico, calificación de 4.1 estrellas y falta de WhatsApp directo.'
         }
       ];
@@ -423,7 +429,8 @@ app.post('/api/send-manual-whatsapp', async (req, res) => {
   const p = history[index];
   
   const pythonCmd = getPythonCommand();
-  const cleanPhone = p.phone.replace(/[^0-9]/g, '');
+  const targetPhone = p.test_phone || p.phone;
+  const cleanPhone = targetPhone.replace(/[^0-9]/g, '');
   const cleanName = p.name.replace(/"/g, '\\"');
   const cleanDiag = p.diagnostic.replace(/"/g, '\\"');
   
@@ -447,7 +454,7 @@ app.post('/api/send-manual-whatsapp', async (req, res) => {
     } else {
       p.whatsapp_status = "simulated";
       await saveHistory(history);
-      res.json({ status: "simulated", message: "Credenciales de WhatsApp no configuradas, se simuló el envío." });
+      res.json({ status: "simulated", message: `Credenciales de WhatsApp no configuradas, se simuló el envío a ${cleanPhone}.` });
     }
   });
 });
@@ -463,7 +470,8 @@ app.post('/api/send-manual-email', async (req, res) => {
   const p = history[index];
   
   const pythonCmd = getPythonCommand();
-  const cleanEmail = p.email.replace(/"/g, '\\"');
+  const targetEmail = p.test_email || p.email;
+  const cleanEmail = targetEmail.replace(/"/g, '\\"');
   const cleanName = p.name.replace(/"/g, '\\"');
   const cleanDiag = p.diagnostic.replace(/"/g, '\\"');
   const cleanCity = (p.ciudad || "Chihuahua").replace(/"/g, '\\"');
@@ -485,7 +493,7 @@ app.post('/api/send-manual-email', async (req, res) => {
     } else {
       p.email_status = "simulated";
       await saveHistory(history);
-      res.json({ status: "simulated", message: "Credenciales SMTP no configuradas, se simuló el envío." });
+      res.json({ status: "simulated", message: `Credenciales SMTP no configuradas, se simuló el envío a ${cleanEmail}.` });
     }
   });
 });

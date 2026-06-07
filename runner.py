@@ -349,8 +349,10 @@ async def run_pipeline(args):
             "slug": re.sub(r"[^a-z0-9]+", "-", args.nicho.lower() + "-" + args.ciudad.lower()).strip("-"),
             "opportunity": 8,
             "package": "Business",
-            "phone": args.test_phone,
-            "email": args.test_email,
+            "phone": "5216672013019",
+            "email": "miguelespino@humanio.digital",
+            "test_phone": args.test_phone,
+            "test_email": args.test_email,
             "ciudad": args.ciudad,
             "diagnostic": "Invisibilidad en buscadores (0 páginas indexadas) y falta de optimización SEO local."
         }]
@@ -358,15 +360,12 @@ async def run_pipeline(args):
         for p in parsed_prospects:
             if "ciudad" not in p or not p["ciudad"] or p["ciudad"].lower() == "null":
                 p["ciudad"] = args.ciudad
-        
-    # Aplicar overrides programáticos de test run solo si se ingresaron datos de prueba
+            p["test_phone"] = args.test_phone if args.test_phone else ""
+            p["test_email"] = args.test_email if args.test_email else ""
+            
+    # Mensaje de información sobre overrides
     if args.test_phone or args.test_email:
-        print("🔧 Test Run: Aplicando overrides de contacto para pruebas...")
-        for p in parsed_prospects:
-            if args.test_phone:
-                p["phone"] = args.test_phone
-            if args.test_email:
-                p["email"] = args.test_email
+        print("🔧 Test Run: Overrides de contacto preparados para simulación (los datos reales se conservan en el CRM).")
     else:
         print("🚀 Production Run: Conservando datos de contacto reales de los prospectos.")
 
