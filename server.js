@@ -119,7 +119,7 @@ app.post('/api/run-outbound', (req, res) => {
 
   // Ejecutamos runner.py y pasamos los argumentos necesarios
   const pythonCmd = getPythonCommand();
-  const cmd = `${pythonCmd} runner.py outbound --nicho "${nicho.replace(/"/g, '\\"')}" --ciudad "${ciudad.replace(/"/g, '\\"')}" --pais "${pais.replace(/"/g, '\\"')}" --limit ${limit || 3} --test-phone "${testPhone || '5216145551234'}" --test-email "${testEmail || 'test-outbound@humanio.digital'}"`;
+  const cmd = `${pythonCmd} runner.py outbound --nicho "${nicho.replace(/"/g, '\\"')}" --ciudad "${ciudad.replace(/"/g, '\\"')}" --pais "${pais.replace(/"/g, '\\"')}" --limit ${limit || 3} --test-phone "${testPhone || ''}" --test-email "${testEmail || ''}"`;
   const child = exec(cmd, { cwd: __dirname });
 
   let fullOutput = '';
@@ -339,6 +339,84 @@ app.post('/api/run-demo', (req, res) => {
       name,
       urls
     });
+  });
+});
+
+// Endpoint para disparar WhatsApp manual
+app.post('/api/send-manual-whatsapp', async (req, res) => {
+  const { slug } = req.body;
+  const history = await getHistory();
+  const index = history.findIndex(h => h.slug === slug);
+  if (index === -1) {
+    return res.status(404).json({ error: "Prospecto no encontrado en el historial." });
+  }
+  const p = history[index];
+  
+  const pythonCmd = getPythonCommand();
+  const cleanPhone = p.phone.replace(/[^0-9]/g, '');
+  const cleanName = p.name.replace(/"/g, '\\"');
+  const cleanDiag = p.diagnostic.replace(/"/g, '\\"');
+  
+  const cmd = `${pythonCmd} runner.py send-manual-whatsapp --phone "${cleanPhone}" --name "${cleanName}" --diagnostic "${cleanDiag}"`;
+  
+  exec(cmd, { cwd: __dirname }, async (error, stdout, stderr) => {
+    if (error) {
+      console.error("Error al enviar WhatsApp manual:", stderr);
+      p.whatsapp_status = "failed";
+      await saveHistory(history);
+      return res.status(500).json({ error: "Fallo al enviar WhatsApp", details: stderr });
+    }
+    
+    if (stdout.includes("__SUCCESS_WA_ID__:")) {
+      const match = stdout.match(/__SUCCESS_WA_ID__:(.+)/);
+      const waId = match ? match[1].trim() : "sent";
+      p.whatsapp_status = "accepted_by_meta";
+      p.whatsapp_id = waId;
+      await saveHistory(history);
+      res.json({ status: "success", message: `WhatsApp enviado con éxito a ${cleanPhone}. ID de Meta: ${waId}` });
+    } else {
+      p.whatsapp_status = "simulated";
+      await saveHistory(history);
+      res.json({ status: "simulated", message: "Credenciales de WhatsApp no configuradas, se simuló el envío." });
+    }
+  });
+});
+
+// Endpoint para disparar Correo SMTP manual
+app.post('/api/send-manual-email', async (req, res) => {
+  const { slug } = req.body;
+  const history = await getHistory();
+  const index = history.findIndex(h => h.slug === slug);
+  if (index === -1) {
+    return res.status(404).json({ error: "Prospecto no encontrado en el historial." });
+  }
+  const p = history[index];
+  
+  const pythonCmd = getPythonCommand();
+  const cleanEmail = p.email.replace(/"/g, '\\"');
+  const cleanName = p.name.replace(/"/g, '\\"');
+  const cleanDiag = p.diagnostic.replace(/"/g, '\\"');
+  const cleanCity = (p.ciudad || "Chihuahua").replace(/"/g, '\\"');
+  
+  const cmd = `${pythonCmd} runner.py send-manual-email --email "${cleanEmail}" --name "${cleanName}" --diagnostic "${cleanDiag}" --ciudad "${cleanCity}"`;
+  
+  exec(cmd, { cwd: __dirname }, async (error, stdout, stderr) => {
+    if (error) {
+      console.error("Error al enviar email manual:", stderr);
+      p.email_status = "failed";
+      await saveHistory(history);
+      return res.status(500).json({ error: "Fallo al enviar Email", details: stderr });
+    }
+    
+    if (stdout.includes("__SUCCESS_EMAIL__")) {
+      p.email_status = "sent";
+      await saveHistory(history);
+      res.json({ status: "success", message: `Correo SMTP enviado con éxito a ${cleanEmail}.` });
+    } else {
+      p.email_status = "simulated";
+      await saveHistory(history);
+      res.json({ status: "simulated", message: "Credenciales SMTP no configuradas, se simuló el envío." });
+    }
   });
 });
 

@@ -347,10 +347,16 @@ async def run_pipeline(args):
             "diagnostic": "Invisibilidad en buscadores (0 páginas indexadas) y falta de optimización SEO local."
         }]
         
-    # Aplicar overrides programáticos de test run
-    for p in parsed_prospects:
-        p["phone"] = args.test_phone
-        p["email"] = args.test_email
+    # Aplicar overrides programáticos de test run solo si se ingresaron datos de prueba
+    if args.test_phone or args.test_email:
+        print("🔧 Test Run: Aplicando overrides de contacto para pruebas...")
+        for p in parsed_prospects:
+            if args.test_phone:
+                p["phone"] = args.test_phone
+            if args.test_email:
+                p["email"] = args.test_email
+    else:
+        print("🚀 Production Run: Conservando datos de contacto reales de los prospectos.")
 
     # Guardar prospectos estructurados temporalmente en `./tmp/current_prospects.json`
     try:
@@ -373,46 +379,19 @@ async def run_pipeline(args):
         Para cada prospecto calificado:
         - Muestra los parámetros del template de WhatsApp 'humanio_diagnostico_v1' ({{1}}, {{2}}, {{3}}, {{4}}).
         - Genera un correo electrónico SMTP completo en HTML con el diseño premium de Humanio (firmado por Miguel González y asunto de 6 palabras o menos).
-        - Simula el envío exitoso al destino de prueba (Teléfono: {args.test_phone}, Email: {args.test_email}) y reporta el ID de mensaje.
+        - Simula el envío exitoso al destino de prueba y reporta el ID de mensaje.
         """
         response = await outreach_agent.chat(prompt_outreach)
         outreach_response = await response.text()
         print(f"Outreach generó las plantillas y simuló los envíos:\n{outreach_response}\n")
 
-    # Ejecutar envíos reales si existen credenciales en el entorno
+    # Los mensajes ya no se envían automáticamente.
+    # Quedan listos en el historial para ser disparados de forma manual desde el Dashboard.
     for p in parsed_prospects:
-        print(f"\n[Outreach Real] Procesando envíos en vivo para {p['name']}...", flush=True)
-        
-        # WhatsApp:
-        contact_name = p.get("name")
-        opportunity_str = f"Atraer más clientes optimizando tu posicionamiento en Google y automatizando la atención por WhatsApp."
-        wa_id = send_real_whatsapp_message(
-            phone=p["phone"],
-            business_name=p["name"],
-            contact_name=contact_name,
-            diagnostic=p["diagnostic"],
-            opportunity=opportunity_str
-        )
-        if wa_id:
-            p["whatsapp_status"] = "accepted_by_meta"
-            p["whatsapp_id"] = wa_id
-        else:
-            p["whatsapp_status"] = "simulated"
-        
-        # SMTP Email:
-        email_sent = send_real_email(
-            to_email=p["email"],
-            business_name=p["name"],
-            contact_name=contact_name,
-            city=args.ciudad,
-            diagnostic_list=[p["diagnostic"]]
-        )
-        if email_sent:
-            p["email_status"] = "sent"
-        else:
-            p["email_status"] = "simulated"
+        p["whatsapp_status"] = "pending"
+        p["email_status"] = "pending"
 
-    # Guardar prospectos con estados actualizados
+    # Guardar prospectos con estados inicializados (pending)
     try:
         with open("./tmp/current_prospects.json", "w", encoding="utf-8") as f:
             json.dump(parsed_prospects, f, indent=2)
@@ -440,13 +419,19 @@ async def run_pipeline(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Orquestador Real de Agentes Humanio")
-    parser.add_argument("command", choices=["status", "outbound", "demo"], default="status", nargs="?")
+    parser.add_argument("command", choices=["status", "outbound", "demo", "send-manual-whatsapp", "send-manual-email"], default="status", nargs="?")
     parser.add_argument("--nicho", default="dentistas", help="Giro o nicho comercial")
     parser.add_argument("--ciudad", default="Chihuahua", help="Ciudad de prospección")
     parser.add_argument("--pais", default="México", help="País de prospección")
     parser.add_argument("--limit", type=int, default=3, help="Cantidad de prospectos a buscar")
-    parser.add_argument("--test-phone", default="5216145551234", help="Teléfono de prueba")
-    parser.add_argument("--test-email", default="test-outbound@humanio.digital", help="Email de prueba")
+    parser.add_argument("--test-phone", default="", help="Teléfono de prueba")
+    parser.add_argument("--test-email", default="", help="Email de prueba")
+    
+    # Argumentos para envío manual
+    parser.add_argument("--phone", default="", help="Teléfono del prospecto")
+    parser.add_argument("--email", default="", help="Email del prospecto")
+    parser.add_argument("--name", default="", help="Nombre del prospecto")
+    parser.add_argument("--diagnostic", default="", help="Diagnóstico del prospecto")
     
     # En caso de que se pase el comando directamente posicional sin guiones (compatibilidad con coordinator.js)
     # Ejemplo: node server.js -> python3 runner.py outbound "nicho" "ciudad" "pais"
@@ -460,6 +445,33 @@ if __name__ == '__main__':
     
     if args.command == "outbound":
         asyncio.run(run_pipeline(args))
+    elif args.command == "send-manual-whatsapp":
+        opportunity_str = "Atraer más clientes optimizando tu posicionamiento en Google y automatizando la atención por WhatsApp."
+        wa_id = send_real_whatsapp_message(
+            phone=args.phone,
+            business_name=args.name,
+            contact_name=args.name,
+            diagnostic=args.diagnostic,
+            opportunity=opportunity_str
+        )
+        if wa_id:
+            print(f"__SUCCESS_WA_ID__:{wa_id}")
+        else:
+            print("__FAILED__")
+            sys.exit(1)
+    elif args.command == "send-manual-email":
+        email_sent = send_real_email(
+            to_email=args.email,
+            business_name=args.name,
+            contact_name=args.name,
+            city=args.ciudad,
+            diagnostic_list=[args.diagnostic]
+        )
+        if email_sent:
+            print("__SUCCESS_EMAIL__")
+        else:
+            print("__FAILED__")
+            sys.exit(1)
     else:
         print(f"El comando '{args.command}' no está soportado en la ejecución real de Fase 1. Usa 'outbound'.")
 

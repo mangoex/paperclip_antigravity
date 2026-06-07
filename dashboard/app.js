@@ -84,6 +84,13 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchAndRenderContacts(crmSearch.value.trim());
   });
 
+  // Al hacer clic en el nodo Outreach, cambiar a Contactos y filtrar por Pendiente
+  nodes.outreach.addEventListener('click', () => {
+    tabContacts.click();
+    crmSearch.value = "Pendiente";
+    fetchAndRenderContacts("pending");
+  });
+
   // Cargar historial al inicio
   fetchAndRenderHistory();
 
@@ -335,6 +342,17 @@ document.addEventListener('DOMContentLoaded', () => {
       
       const isHighOpportunity = p.opportunity >= 8;
       
+      const showSendWa = p.whatsapp_status === 'pending';
+      const showSendEmail = p.email_status === 'pending';
+      
+      let sendButtonsHtml = '';
+      if (showSendWa) {
+        sendButtonsHtml += `<button class="btn btn-sm btn-whatsapp btn-send-wa">Enviar WhatsApp</button>`;
+      }
+      if (showSendEmail) {
+        sendButtonsHtml += `<button class="btn btn-sm btn-email btn-send-email">Enviar Correo</button>`;
+      }
+      
       card.innerHTML = `
         <div class="lead-header">
           <span class="lead-name">${p.name}</span>
@@ -351,9 +369,68 @@ document.addEventListener('DOMContentLoaded', () => {
         ${buildFunnelTimelineHtml(p)}
         <div class="lead-actions">
           <button class="btn btn-sm btn-secondary btn-diagnostic">Ver Diagnóstico</button>
+          ${sendButtonsHtml}
           <button class="btn btn-sm btn-primary btn-build-demo">Generar Demo Web</button>
         </div>
       `;
+
+      if (showSendWa) {
+        card.querySelector('.btn-send-wa').addEventListener('click', async (e) => {
+          const btn = e.target;
+          btn.disabled = true;
+          btn.textContent = 'Enviando...';
+          try {
+            const res = await fetch('/api/send-manual-whatsapp', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ slug: p.slug })
+            });
+            const data = await res.json();
+            alert(data.message || data.error);
+            p.whatsapp_status = data.status === 'success' ? 'accepted_by_meta' : (data.status === 'simulated' ? 'simulated' : 'failed');
+            const timeline = card.querySelector('.funnel-timeline');
+            if (timeline) {
+              timeline.outerHTML = buildFunnelTimelineHtml(p);
+            }
+            btn.remove();
+            fetchAndRenderHistory();
+            fetchAndRenderContacts(crmSearch.value.trim());
+          } catch (err) {
+            alert("Error: " + err.message);
+            btn.disabled = false;
+            btn.textContent = 'Enviar WhatsApp';
+          }
+        });
+      }
+
+      if (showSendEmail) {
+        card.querySelector('.btn-send-email').addEventListener('click', async (e) => {
+          const btn = e.target;
+          btn.disabled = true;
+          btn.textContent = 'Enviando...';
+          try {
+            const res = await fetch('/api/send-manual-email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ slug: p.slug })
+            });
+            const data = await res.json();
+            alert(data.message || data.error);
+            p.email_status = data.status === 'success' ? 'sent' : (data.status === 'simulated' ? 'simulated' : 'failed');
+            const timeline = card.querySelector('.funnel-timeline');
+            if (timeline) {
+              timeline.outerHTML = buildFunnelTimelineHtml(p);
+            }
+            btn.remove();
+            fetchAndRenderHistory();
+            fetchAndRenderContacts(crmSearch.value.trim());
+          } catch (err) {
+            alert("Error: " + err.message);
+            btn.disabled = false;
+            btn.textContent = 'Enviar Correo';
+          }
+        });
+      }
 
       // Detonar flujo Inbound/Demo
       card.querySelector('.btn-build-demo').addEventListener('click', async (e) => {
@@ -435,6 +512,17 @@ document.addEventListener('DOMContentLoaded', () => {
           ? `<button class="btn btn-sm btn-secondary btn-view-demo">Ver Demo</button>`
           : `<button class="btn btn-sm btn-primary btn-build-demo">Generar Demo Web</button>`;
 
+        const showSendWa = p.whatsapp_status === 'pending';
+        const showSendEmail = p.email_status === 'pending';
+        
+        let sendButtonsHtml = '';
+        if (showSendWa) {
+          sendButtonsHtml += `<button class="btn btn-sm btn-whatsapp btn-send-wa">Enviar WhatsApp</button>`;
+        }
+        if (showSendEmail) {
+          sendButtonsHtml += `<button class="btn btn-sm btn-email btn-send-email">Enviar Correo</button>`;
+        }
+
         card.innerHTML = `
           <div class="lead-header">
             <span class="lead-name">${p.name}</span>
@@ -455,9 +543,56 @@ document.addEventListener('DOMContentLoaded', () => {
           ${buildFunnelTimelineHtml(p)}
           <div class="lead-actions">
             <button class="btn btn-sm btn-secondary btn-diagnostic">Ver Diagnóstico</button>
+            ${sendButtonsHtml}
             ${demoBtnHtml}
           </div>
         `;
+
+        if (showSendWa) {
+          card.querySelector('.btn-send-wa').addEventListener('click', async (e) => {
+            const btn = e.target;
+            btn.disabled = true;
+            btn.textContent = 'Enviando...';
+            try {
+              const res = await fetch('/api/send-manual-whatsapp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ slug: p.slug })
+              });
+              const data = await res.json();
+              alert(data.message || data.error);
+              fetchAndRenderHistory();
+              fetchAndRenderContacts(crmSearch.value.trim());
+            } catch (err) {
+              alert("Error: " + err.message);
+              btn.disabled = false;
+              btn.textContent = 'Enviar WhatsApp';
+            }
+          });
+        }
+
+        if (showSendEmail) {
+          card.querySelector('.btn-send-email').addEventListener('click', async (e) => {
+            const btn = e.target;
+            btn.disabled = true;
+            btn.textContent = 'Enviando...';
+            try {
+              const res = await fetch('/api/send-manual-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ slug: p.slug })
+              });
+              const data = await res.json();
+              alert(data.message || data.error);
+              fetchAndRenderHistory();
+              fetchAndRenderContacts(crmSearch.value.trim());
+            } catch (err) {
+              alert("Error: " + err.message);
+              btn.disabled = false;
+              btn.textContent = 'Enviar Correo';
+            }
+          });
+        }
 
         card.querySelector('.btn-diagnostic').addEventListener('click', () => {
           appendConsoleLine(`\n[Auditoría SEO - ${p.name}]:`, 'system');
@@ -524,12 +659,18 @@ document.addEventListener('DOMContentLoaded', () => {
       // Aplicar filtro si existe
       if (filterQuery) {
         const query = filterQuery.toLowerCase();
-        prospects = prospects.filter(p => 
-          (p.name && p.name.toLowerCase().includes(query)) ||
-          (p.ciudad && p.ciudad.toLowerCase().includes(query)) ||
-          (p.email && p.email.toLowerCase().includes(query)) ||
-          (p.phone && p.phone.toLowerCase().includes(query))
-        );
+        if (query === 'pending' || query === 'pendiente') {
+          prospects = prospects.filter(p => 
+            p.whatsapp_status === 'pending' || p.email_status === 'pending'
+          );
+        } else {
+          prospects = prospects.filter(p => 
+            (p.name && p.name.toLowerCase().includes(query)) ||
+            (p.ciudad && p.ciudad.toLowerCase().includes(query)) ||
+            (p.email && p.email.toLowerCase().includes(query)) ||
+            (p.phone && p.phone.toLowerCase().includes(query))
+          );
+        }
       }
       
       if (!prospects || prospects.length === 0) {
@@ -551,6 +692,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (p.whatsapp_status === 'simulated' || p.email_status === 'simulated') {
           contactBadgeClass = 'badge-warning';
           contactBadgeText = 'Simulado';
+        } else if (p.whatsapp_status === 'pending' && p.email_status === 'pending') {
+          contactBadgeClass = 'badge-active';
+          contactBadgeText = 'Pendiente';
         }
         
         // Estatus de Página
@@ -564,6 +708,31 @@ document.addEventListener('DOMContentLoaded', () => {
         const demoBtnHtml = hasDemo 
           ? `<button class="btn btn-sm btn-secondary btn-view-demo">Ver Demo</button>`
           : `<button class="btn btn-sm btn-primary btn-build-demo">Generar Demo Web</button>`;
+
+        const showSendWa = p.whatsapp_status === 'pending';
+        const showSendEmail = p.email_status === 'pending';
+        
+        let waButtonHtml = '';
+        if (showSendWa) {
+          waButtonHtml = `<button class="btn btn-sm btn-whatsapp btn-send-wa" style="flex-grow: 1;">Enviar WhatsApp</button>`;
+        } else {
+          waButtonHtml = `
+            <a href="https://wa.me/${p.phone.replace(/\D/g, '')}?text=Hola%20${encodeURIComponent(p.name)}%20" target="_blank" class="btn btn-sm btn-whatsapp" style="text-decoration: none; flex-grow: 1;">
+              💬 WhatsApp
+            </a>
+          `;
+        }
+        
+        let emailButtonHtml = '';
+        if (showSendEmail) {
+          emailButtonHtml = `<button class="btn btn-sm btn-email btn-send-email" style="flex-grow: 1;">Enviar Correo</button>`;
+        } else {
+          emailButtonHtml = `
+            <a href="mailto:${p.email || ''}" class="btn btn-sm btn-email" style="text-decoration: none; flex-grow: 1;">
+              ✉️ Correo
+            </a>
+          `;
+        }
 
         card.innerHTML = `
           <div class="lead-header">
@@ -584,15 +753,57 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
           
           <div class="lead-actions" style="margin-top: 12px; display: flex; gap: 8px;">
-            <a href="https://wa.me/${p.phone.replace(/\D/g, '')}?text=Hola%20${encodeURIComponent(p.name)}%20" target="_blank" class="btn btn-sm btn-whatsapp" style="text-decoration: none; flex-grow: 1;">
-              💬 WhatsApp
-            </a>
-            <a href="mailto:${p.email || ''}" class="btn btn-sm btn-email" style="text-decoration: none; flex-grow: 1;">
-              ✉️ Correo
-            </a>
+            ${waButtonHtml}
+            ${emailButtonHtml}
             ${demoBtnHtml}
           </div>
         `;
+
+        if (showSendWa) {
+          card.querySelector('.btn-send-wa').addEventListener('click', async (e) => {
+            const btn = e.target;
+            btn.disabled = true;
+            btn.textContent = 'Enviando...';
+            try {
+              const res = await fetch('/api/send-manual-whatsapp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ slug: p.slug })
+              });
+              const data = await res.json();
+              alert(data.message || data.error);
+              fetchAndRenderHistory();
+              fetchAndRenderContacts(crmSearch.value.trim());
+            } catch (err) {
+              alert("Error: " + err.message);
+              btn.disabled = false;
+              btn.textContent = 'Enviar WhatsApp';
+            }
+          });
+        }
+
+        if (showSendEmail) {
+          card.querySelector('.btn-send-email').addEventListener('click', async (e) => {
+            const btn = e.target;
+            btn.disabled = true;
+            btn.textContent = 'Enviando...';
+            try {
+              const res = await fetch('/api/send-manual-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ slug: p.slug })
+              });
+              const data = await res.json();
+              alert(data.message || data.error);
+              fetchAndRenderHistory();
+              fetchAndRenderContacts(crmSearch.value.trim());
+            } catch (err) {
+              alert("Error: " + err.message);
+              btn.disabled = false;
+              btn.textContent = 'Enviar Correo';
+            }
+          });
+        }
 
         // Event listener para el botón de ver demo
         if (hasDemo) {
